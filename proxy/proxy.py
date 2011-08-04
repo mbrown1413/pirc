@@ -1,141 +1,136 @@
 
-from Queue import Queue
-from time import time
+import time
+import traceback
+from SimpleXMLRPCServer import SimpleXMLRPCServer
 
 #TODO: Catch an import error from this library
 import irclib
 
-from server import IRCServer, SERVER_COMMANDS
-from common import XMLRPCServer
+from remoteircserver import RemoteIRCServer
 
-class IRCProxy(object):
-    def __init__(self, bind_address="localhost", bind_port=2939):
+class IRCProxyServer(object):
+    '''The XMLRPC interface that proxy clients use.
 
-        self.event_queue = Queue()
+    An instance of this class is served via XMLRPC.  Proxy clients use it to
+    get events and send events to IRC servers.  This means that any functions
+    that don't start with an underscore are served directly via XMLRPC.
 
-        # Init IRC client
-        self.irc = irclib.IRC()
-        self.servers = {}
-        self.irc.add_global_handler("all_events",
-            self.irc_event_dispatcher, -10)
+    When an event is recieved from an IRC server, _handle_irc_event is called.
 
-        self.xmlrpc = self.init_xmlrpc(bind_address, bind_port)
+    '''
 
-    def get_server(self, server_name):
-        return self.servers[server_name]
+    def __init__(self, bind_address, bind_port):
+        self.remote_irc_servers = {}
 
-    def irc_event_dispatcher(self, connection, event):
-        if event._eventtype == "all_raw_messages":
-            # Ignore these.  We will deal with the non-raw messages
-            return
-        for server in self.servers.values():
-            if server.connection == connection:
-                server.event_dispatcher(event)
-                break
-        self.event_queue.put(event)
+        self.irc_client = irclib.IRC()
+        self.irc_client.add_global_handler("all_events", self._handle_irc_event)
 
-    def run(self):
-        '''Main loop that handles the XMLRPC Server and the irc listener.'''
+        # Start xmlrpc server
+        self.xmlrpc_server = SimpleXMLRPCServer((bind_address, bind_port))
+        self.xmlrpc_server.register_instance(self)
+        self.xmlrpc_server.timeout = 0.1 # Make handle_request() non-blocking
+
+    def _run(self):
         while True:
-            self.irc.process_once(0.1)
-            self.xmlrpc.handle_request()
+            self.xmlrpc_server.handle_request()
+            self.irc_client.process_once(0.1)
 
-    def init_xmlrpc(self, bind_address, bind_port):
-        '''Initialize the xmlrpc server and return it.'''
-        server = XMLRPCServer(self.dispatch, (bind_address, bind_port))
-        server.timeout = 0.1 # Make self.xmlrpc.handle_request() non-blocking
+    def _dispatch(self, method, params):
+        '''XMLRPC dispatch method that logs exceptions.'''
 
-        return server
+        try:
 
-    def dispatch(self, method, params):
-        '''Called by the xmlrpc server when a call comes in.
+            # Method inside IRCProxyServer(this instance)
+            func = getattr(self, method, None)
+            if func != None and callable(func):
+                return func(*params)
 
-        Arguments:
-        method - The name of the method called.
-        params - A tuple containing the method's arguments.
+            # Method inside a RemoteIRCServer instance
+            elif method.startswith("server_") and len(params) > 0:
+                server = self.remote_irc_servers[params[0]]
+                method_name = method.lstrip("server_")
+                if not method_name.startswith("_"):
+                    func = getattr(server, method_name)
+                    if callable(func):
+                        return func(*params[1:])
 
-        '''
+            # Method inside a RemoteIRCChannel instance
+            # Pass this to a RemoteIRCServer, which will pass it to a
+            # RemoteIRCChannel instance.
+            elif method.startswith("channel_") and len(params) > 0:
+                server = self.remote_irc_servers[params[0]]
+                method_name = method.lstrip("channel_")
+                if not method_name.startswith("_"):
+                    return server._dispatch_channel_method(method_name, params[1:])
 
-        # Methods that aren't handled by IRCServer objects
-        EVENT_METHODS = {
-            "connect": self.connect,
-            "disconnect": self.disconnect,
-            "get_event_slice": self.get_event_slice,
-            "get_events_since": self.get_events_since,
-            "get_server_names": self.get_server_names,
-        }
+            # Method not found!
+            msg = 'Method "%s" is not supported' % method
+            #TODO: Log
+            print msg
+            raise ValueError(msg)
 
-        if method in EVENT_METHODS:
-            return EVENT_METHODS[method](*params)
-        elif method in SERVER_COMMANDS:
-            server = self.get_server(params[0])
-            server_name = params[0]
-            server = self.get_server(server_name)
-            server.server_command(method, params[1:])
-            return True
-        else:
-            #TODO: Better error
-            print "INVALID METHOD!!!!!!!!!!!!!!", method
+        except Exception as e:
+            #TODO: Log
+            traceback.print_exc()
+            raise
 
-    ################# XMLRPC Server Functions ################# 
-    # All of the following can be called via xmlrpc.  For a complete list of
-    # xmlrpc calls, see the dispatch method.
+    def _handle_irc_event(self, connection, irc_event):
 
-    def connect(self, uri, port, nickname, password=None, ssl=False,
-        ipv6=False):
+        try:
 
-        #TODO: Error check this connection
-        server = IRCServer(self, uri, uri, port, nickname, password=None,
-            ssl=False, ipv6=False)
+            # Ignore raw messages and pings
+            if irc_event._eventtype == "all_raw_messages" or \
+                irc_event._eventtype == "ping":
 
-        self.servers[uri] = server
+                return
+
+            event = {
+                "server": None,
+                "type": irc_event._eventtype,
+                "source": irc_event._source,
+                "target": irc_event._target,
+                "arguments": irc_event._arguments,
+                "time": time.time()
+            }
+            if event['source'] is None:
+                event['source'] = False
+
+            # Give this event to its respective server object
+            for server in self.remote_irc_servers.itervalues():
+                if server.connection == connection:
+                    event["server"] = server.server_name
+                    server._handle_irc_event(event)
+                    return
+
+            print "EVENT WITHOUT SERVER:", event
+
+        except Exception as e:
+            #TODO: Log
+            traceback.print_exc()
+
+    def server_list(self):
+        return self.remote_irc_servers.keys()
+
+    def server_connect(self, server_name, nick_name, uri, port=6667):
+        '''Connect with the server with the given server name.'''
+        #XXX
+        connection = self.irc_client.server()
+        remote_server = RemoteIRCServer(connection, server_name, nick_name, uri, port)
+        self.remote_irc_servers[server_name] = remote_server
         return True
 
-    def disconnect(self, server_name, leave_message=None):
-        pass #TODO
+    def server_disconnect(self, server_name, leave_message=""):
+        server = self.remote_irc_servers[server_name]
+        server.disconnect(leave_message)
+        del self.remote_irc_servers[server_name]
+        return True
 
-    def get_event_slice(self, server_name, begin, end):
-        '''Get a slice of events from the server's event list.
+def run(bind_port=2939, bind_address="0.0.0.0"):
 
-        begin and end are indexes into the event list, with index 0 being the
-        latest event.
+    # Start local IRC client and proxy
+    proxy = IRCProxyServer(bind_address, bind_port)
+    proxy._run()
 
-        Example: This will get the latest 10 events:
-        >>> self.get_event_slice("irc.example.com", 0, 10)
+if __name__ == "__main__":
+    run()
 
-        '''
-
-        server = self.get_server(server_name)
-        return server.events[::-1][begin, end][::-1]
-
-    def get_events_since(self, start_time, servers=None):
-        '''Get events since the given time.
-
-        start_time is a time in seconds since epoch.  If servers is given, it
-        should be a list of server names to get events from.  If servers is
-        None (default) all servers are looked at.
-
-        Clients should be aware that the server time and client time may be
-        slightly different, so the client should not pass values derived from
-        time.time() in here.  Instead, the client should use the timestamps of
-        past events received.
-
-        '''
-        if not servers:
-            servers = self.servers
-
-        events = []
-        for server_name in servers:
-            server = self.get_server(server_name)
-
-            # Go through events in reverse order, until it's timestamp is
-            # earlier than the given time
-            for event in server.events[::-1]:
-                if event['time'] <= start_time: break
-                events.append(event)
-
-        return events
-
-    def get_server_names(self):
-        '''Returns a list of the server names.'''
-        return map(lambda server: server.name, servers)
