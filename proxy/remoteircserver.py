@@ -3,6 +3,7 @@ import time
 from itertools import imap
 
 from eventlist import EventList
+from errors import ServerError
 
 SERVER_COMMANDS = [
     "action",
@@ -47,7 +48,12 @@ SERVER_COMMANDS = [
 ]
 
 class RemoteIRCServer(object):
-    '''Represents an IRC Server that the client has connected to.'''
+    '''Represents an IRC Server that the client has connected to.
+
+    Any method that does not start with an underscore is served via XMLRPC
+    under the name server_<method>.
+
+    '''
 
     def __init__(self, connection, server_name, nick_name, uri, port, password=None,
         ssl=False, ipv6=False):
@@ -65,6 +71,16 @@ class RemoteIRCServer(object):
         self.events = EventList()
 
     def _handle_irc_event(self, event):
+        '''Callback for events from IRC belonging to this server.
+
+        Stores the event in the repective channel, or in a server event list if
+        the event does not belong to a channel.
+
+        :param event:
+            An event dictionary, created in IRCProxyServer._handle_irc_event,
+            where this method is called.
+
+        '''
 
         # Hand event to channel, if applicable
         if event["target"] and event["target"][0] in "#&+!":
@@ -75,15 +91,24 @@ class RemoteIRCServer(object):
 
         # Event has no channel
         self.events.append(event)
-        #print "EVENT WITH NO CHANNEL:", event
-
-    def _server_command(self, command, params):
-        #print "Command:", command, params
-        if command in SERVER_COMMANDS:
-            func = getattr(self.connection, command)
-            func(*params)
 
     def _dispatch_channel_method(self, method, params):
+        '''Dispatch XMLRPC methods that start with "channel_".
+
+        First, this server instance is searched for the method name including
+        the "channel_" prefix.  If that isn't found, the a method name
+        (excluding the "channel_") is looked for in RemoteIRCChannel.
+
+        :param method:
+            Name of the XMLRPC method requested.
+
+        :param params:
+            A tuple of the parameters given in the XMLRPC call.
+
+        :returns:
+            The return value of the method that was called.
+
+        '''
 
         # Method inside this instance
         func = getattr(self, "channel_%s" % method, None)
@@ -91,33 +116,61 @@ class RemoteIRCServer(object):
             return func(*params)
 
         # Method inside channel object
-        # Check to make sure method is not private is done in
+        # The check to make sure method is not private is done in
         # IRCProxy._dispatch, which calls this function.
-        channel = self.channels[params[0]]
-        func = getattr(channel, method, None)
-        if func != None and callable(func):
-            return func(*params[1:])
+        if hasattr(RemoteIRCChannel, method) and len(params) > 0:
+            channel = self.channels[params[0]]
+            func = getattr(channel, method, None)
+            if func != None and callable(func):
+                return func(*params[1:])
 
-        raise ValueError('Channel method "%s" is not supported' % method)
+        raise ServerError('Proxy server does not support method "channel_%s".' % method)
+
+    def _disconnect(self, leave_message=""):
+        '''Disconnect from this server.
+
+        :param leave_message:
+            A message that is given to each channel and the server when
+            leaving.
+
+        '''
+        for channel in self.channels:
+            channel.leave(leave_message)
+        self.connection.disconnect(leave_message)
 
     def channel_join(self, channel_name):
+        '''Join a channel.
+
+        :param channel_name:
+            Name of the channel to join.
+
+        '''
         channel = RemoteIRCChannel(self, channel_name)
         self.channels[channel_name] = channel
         return True
 
     def channel_list(self):
+        '''List channels in this server that the user is currently in.
+
+        :returns:
+            A list of channels.
+
+        '''
         return self.channels.keys()
 
     def channel_leave(self, channel_name, message=""):
+        '''Leave a channel.
+
+        :param channel_name:
+            The name of the channel to join.
+
+        :param message:
+            A message that is given to the channel when leaving.
+
+        '''
         channel = self.channels[channel_name]
         channel._leave()
         del channels[channel_name]
-        return True
-
-    def disconnect(self, leave_message=""):
-        for channel in self.channels:
-            channel.leave(leave_message)
-        self.connection.disconnect(leave_message)
         return True
 
     def get_channel_event_slice(self, start_index, end_index):
@@ -137,6 +190,12 @@ class RemoteIRCServer(object):
         return self.events.get_events_since(start_time)
 
 class RemoteIRCChannel(object):
+    '''Represents a channel on an RemoteIRCServer.
+
+    Any method that does not start with an underscore is served via XMLRPC
+    under the name channel_<method>.
+
+    '''
 
     def __init__(self, server, channel_name):
         self.server = server

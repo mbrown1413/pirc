@@ -8,7 +8,7 @@ class EventList(object):
         self.events.append(event)
 
     def get_event_slice(self, start_index, end_index):
-        '''Get a slice of events from the server's event list.
+        '''Get a slice of events.
 
         begin and end are indexes into the event list, with index 0 being the
         latest event.
