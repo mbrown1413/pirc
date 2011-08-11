@@ -1,47 +1,69 @@
 
+from multiprocessing import Process, Pipe
 import xmlrpclib
+import time
 
-class IRCClient(object):
+from interfaces import WXInterface
 
-    def __init__(self, interface, proxy_address, proxy_port=2939):
+class IRCProxyClient(object):
 
-        self.interface = interface
+    def __init__(self, proxy_address, proxy_port=2939):
         self.proxy_address = proxy_address
-        self.proxy_port = 2939
+        self.proxy_port = proxy_port
+        self.interface = None
 
         #TODO: proxy and port need to be parsed more robustly with urlparse
         self.proxy = xmlrpclib.ServerProxy(
             "%s:%s/" % (proxy_address, proxy_port))
 
-        # Servers that we will request events from
-        self.active_servers = [] # Empty means all servers are interesting
+        # Start event subprocess
+        self.event_pipe, child_conn = Pipe()
+        self.event_process = Process(target=event_loop, args=(self.proxy, child_conn,))
+        self.event_process.start()
 
-    def run(self):
+    def get_events(self):
+        if self.event_pipe.poll(0.1):
+            events = self.event_pipe.recv()
+            return events
+        else:
+            return []
 
-        #TODO: Timeout should be some kind of an exponential
-        # falloff since the last event
-        timeout = 1000 
-
+    def run(self, interface):
+        self.interface = interface
         try:
-            self.interface.init(self)
-            last_event_time = 0 # TODO
-            while True:
-                events = self.proxy.get_events_since(last_event_time)
-                for event in events:
-                    self.interface.on_event(event)
-                    if last_event_time < event['time']:
-                        last_event_time = event['time']
-
-                command = self.interface.get_command(timeout)
-                if command:
-                    self.do_command(command)
-
+            self.interface.initialize()
+            self.interface.run()
         finally:
             self.interface.uninitialize()
 
-    def do_command(self, server_name, channel, command):
-        #TODO: Actually parse for commands
-        self.proxy.privmsg(server_name, channel, command)
+    def handle_events(self):
+        events = self.get_events()
+        for event in events:
+            self.handle_event(event)
 
-    def set_active_servers(self, servers):
-        self.active_servers = servers
+    def handle_event(self, event):
+        print event  #XXX
+        self.interface.put_text(str(event))
+        self.interface.put_text("\n")
+        # TODO: Call Event Handler
+
+    def run_command(self, command, server=None, channel=None):
+        print command  #XXX
+        #TODO: Call Command Parser
+
+
+def event_loop(proxy_server, pipe):
+    last_event_time = 0
+    while True:
+        events = proxy_server.get_events_since(last_event_time)
+        if events:
+            #TODO: Sort events by timestamp
+            pipe.send(events)
+            last_event_time = time.time()
+        time.sleep(1)
+
+if __name__ == "__main__":
+    client = IRCProxyClient("http://localhost")
+    interface = WXInterface(client)
+    client.run(interface)
+

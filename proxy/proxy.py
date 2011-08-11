@@ -9,6 +9,7 @@ import irclib
 
 from remoteircserver import RemoteIRCServer
 from errors import ServerError
+from eventlist import EventList
 
 class IRCProxyServer(object):
     '''The XMLRPC interface that proxy clients use.
@@ -24,6 +25,7 @@ class IRCProxyServer(object):
     def __init__(self, bind_address, bind_port):
         '''Starts the irc client library and XMLRPC Server.'''
         self.remote_irc_servers = {}
+        self.events = EventList()
 
         self.irc_client = irclib.IRC()
         self.irc_client.add_global_handler("all_events", self._handle_irc_event)
@@ -136,15 +138,19 @@ class IRCProxyServer(object):
                 return
 
             event = {
-                "server": None,
+
+                # Attributes from IRC
                 "type": irc_event._eventtype,
                 "source": irc_event._source,
                 "target": irc_event._target,
                 "arguments": irc_event._arguments,
-                "time": time.time()
+
+                # Extra attributes
+                "server": False,
+                "channel": False,
+                "time": time.time(),
+
             }
-            if event['source'] is None:
-                event['source'] = False
 
             # Give this event to its respective server object
             for server in self.remote_irc_servers.itervalues():
@@ -163,6 +169,12 @@ class IRCProxyServer(object):
         except Exception as e:
             #TODO: Log
             traceback.print_exc()
+
+    def get_events_since(self, start_time):
+        events = self.events.get_events_since(start_time)
+        for server in self.remote_irc_servers.itervalues():
+            events.extend(server._get_events_since(start_time))
+        return events
 
     def server_list(self):
         '''List server names that are connected.
@@ -204,6 +216,7 @@ class IRCProxyServer(object):
         remote_server = RemoteIRCServer(connection, server_name, nick_name,
                                         uri, port, password, ssl, ipv6)
         self.remote_irc_servers[server_name] = remote_server
+        self.events.append(type="server_join", server=server_name)
         return True
 
     def server_disconnect(self, server_name, leave_message=""):
@@ -220,6 +233,7 @@ class IRCProxyServer(object):
         server = self.remote_irc_servers[server_name]
         server._disconnect(leave_message)
         del self.remote_irc_servers[server_name]
+        self.events.append(type="server_disconnect", server=server_name)
         return True
 
 def run(bind_port=2939, bind_address="0.0.0.0"):

@@ -84,8 +84,9 @@ class RemoteIRCServer(object):
 
         # Hand event to channel, if applicable
         if event["target"] and event["target"][0] in "#&+!":
-            for channel in self.channels.itervalues():
-                if channel.channel_name == event["target"]:
+            for channel_name, channel in self.channels.iteritems():
+                if channel_name == event["target"]:
+                    event["channel"] = channel_name
                     channel._handle_irc_event(event)
                     return
 
@@ -147,6 +148,7 @@ class RemoteIRCServer(object):
         '''
         channel = RemoteIRCChannel(self, channel_name)
         self.channels[channel_name] = channel
+        self.events.append(type="channel_join", channel=channel_name)
         return True
 
     def channel_list(self):
@@ -171,23 +173,31 @@ class RemoteIRCServer(object):
         channel = self.channels[channel_name]
         channel._leave()
         del channels[channel_name]
+        self.events.append(type="channel_leave", channel=channel_name,
+                           message=message)
         return True
 
-    def get_channel_event_slice(self, start_index, end_index):
+    #XXX
+    '''
+    def _get_channel_event_slice(self, start_index, end_index):
         channel_events = imap(lambda x: x.get_event_slice(start_index,
                               end_index), self.channels)
         return reduce(lambda x,y: x+y, channel_events)
 
-    def get_channel_events_since(self, start_time):
+    def _get_channel_events_since(self, start_time):
         channel_events = imap(lambda x: x.get_events_since(start_index),
                               self.channels)
         return reduce(lambda x,y: x+y, channel_events)
 
-    def get_event_slice(self, start_index, end_index):
+    def _get_event_slice(self, start_index, end_index):
         return self.events.get_event_slice(start_index, end_index)
+    '''
 
-    def get_events_since(self, start_time):
-        return self.events.get_events_since(start_time)
+    def _get_events_since(self, start_time):
+        events = self.events.get_events_since(start_time)
+        for channel in self.channels.itervalues():
+            events.extend(channel._get_events_since(start_time))
+        return events
 
 class RemoteIRCChannel(object):
     '''Represents a channel on an RemoteIRCServer.
@@ -205,16 +215,18 @@ class RemoteIRCChannel(object):
         self.events = EventList()
 
     def _handle_irc_event(self, event):
-        #print "Event:", event #XXX
         self.events.append(event)
 
     def _leave(self, message):
         self.server.connection.part(channel_name, message)
 
+    #XXX
+    '''
     def get_event_slice(self, start_index, end_index):
         return self.events.get_event_slice(start_index, end_index)
+    '''
 
-    def get_events_since(self, start_time):
+    def _get_events_since(self, start_time):
         return self.events.get_events_since(start_time)
 
     def message(self, message):

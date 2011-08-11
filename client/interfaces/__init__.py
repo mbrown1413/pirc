@@ -1,2 +1,3 @@
 
-from curses_interface import CursesInterface
+from base import BaseInterface
+from wxinterface import WXInterface
