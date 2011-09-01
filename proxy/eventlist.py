@@ -7,19 +7,15 @@ class EventList(object):
         self.events = []
 
     def append(self, event=None, **kwargs):
-        if event:
-            self.events.append(event)
+        if not event:
+            event = kwargs
 
-        else:
-
-            if "type" not in kwargs:
-                raise ValueError("Event must have a type."
-                                 "Erronous event: %s" % kwargs)
-            if "time" not in kwargs:
-                kwargs["time"] = time.time()
-            if "server" not in kwargs:
-                kwargs["server"] = False
-            self.append(kwargs)
+        if "type" not in event:
+            raise ValueError("Event must have a type."
+                             "Erronous event: %s" % event)
+        if "time" not in event:
+            event['time'] = time.time()
+        self.events.append(event)
 
     def get_event_slice(self, start_index, end_index):
         '''Get a slice of events.

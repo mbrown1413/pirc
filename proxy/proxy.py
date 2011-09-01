@@ -10,6 +10,7 @@ import irclib
 from remoteircserver import RemoteIRCServer
 from errors import ServerError
 from eventlist import EventList
+from ircevents import format_irc_event
 
 class IRCProxyServer(object):
     '''The XMLRPC interface that proxy clients use.
@@ -137,30 +138,11 @@ class IRCProxyServer(object):
 
                 return
 
-            event = {
-
-                # Attributes from IRC
-                "type": irc_event._eventtype,
-                "source": irc_event._source,
-                "target": irc_event._target,
-                "arguments": irc_event._arguments,
-
-                # Extra attributes
-                "server": False,
-                "channel": False,
-                "time": time.time(),
-
-            }
-
-            # Give this event to its respective server object
-            for server in self.remote_irc_servers.itervalues():
-                if server.connection == connection:
-                    event["server"] = server.server_name
-                    server._handle_irc_event(event)
-                    return
-
-            #TODO: Log
-            print "EVENT WITHOUT SERVER:", event
+            irc_event.connection = connection
+            event = format_irc_event(irc_event, self)
+            if not event: return
+            server = self.remote_irc_servers[event['server']]
+            server._handle_irc_event(event)
 
         except ServerError as e:
             #TODO: Log

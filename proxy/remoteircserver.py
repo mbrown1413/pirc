@@ -83,12 +83,12 @@ class RemoteIRCServer(object):
         '''
 
         # Hand event to channel, if applicable
-        if event["target"] and event["target"][0] in "#&+!":
-            for channel_name, channel in self.channels.iteritems():
-                if channel_name == event["target"]:
-                    event["channel"] = channel_name
-                    channel._handle_irc_event(event)
-                    return
+        if "target" in event and event["target"][0] in "#&+!":
+            channel_name = event["target"]
+            if channel_name in self.channels:
+                channel = self.channels[channel_name]
+                channel._handle_irc_event(event)
+                return
 
         # Event has no channel
         self.events.append(event)
@@ -174,7 +174,7 @@ class RemoteIRCServer(object):
         channel._leave()
         del channels[channel_name]
         self.events.append(type="channel_leave", channel=channel_name,
-                           message=message)
+                           text=message)
         return True
 
     #XXX
@@ -230,13 +230,12 @@ class RemoteIRCChannel(object):
         return self.events.get_events_since(start_time)
 
     def message(self, message):
-        self.events.append({
-            "server": self.server.server_name,
-            "type": "privmsg",
-            "source": self.server.nick_name,
-            "target": self.channel_name,
-            "arguments": [message],
-            "time": time.time(),
-        })
+        self.events.append(
+            type = "privmsg",
+            server = self.server.server_name,
+            source = self.server.nick_name,
+            target = self.channel_name,
+            text = message,
+        )
         self.server.connection.privmsg(self.channel_name, message)
         return True
