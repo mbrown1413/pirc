@@ -11,6 +11,7 @@ from remoteircserver import RemoteIRCServer
 from errors import ServerError
 from eventlist import EventList
 from ircevents import format_irc_event
+from tools import type_check
 
 class IRCProxyServer(object):
     '''The XMLRPC interface that proxy clients use.
@@ -77,6 +78,7 @@ class IRCProxyServer(object):
             returned for any errors.
 
         '''
+        #TODO: Double check typechecking in all _dispatch methods.
 
         try:
 
@@ -88,9 +90,9 @@ class IRCProxyServer(object):
             # Method inside a RemoteIRCServer instance
             elif method.startswith("server_") and len(params) > 0:
                 server = self.remote_irc_servers[params[0]]
-                method_name = method.lstrip("server_")
-                if not method_name.startswith("_"):
-                    func = getattr(server, method_name)
+                server_method = method[len("server_"):]
+                if not server_method.startswith("_"):
+                    func = getattr(server, server_method)
                     if callable(func):
                         return func(*params[1:])
 
@@ -98,10 +100,14 @@ class IRCProxyServer(object):
             # Pass this to a RemoteIRCServer, which will pass it to a
             # RemoteIRCChannel instance.
             elif method.startswith("channel_") and len(params) > 0:
-                server = self.remote_irc_servers[params[0]]
-                method_name = method.lstrip("channel_")
-                if not method_name.startswith("_"):
-                    return server._dispatch_channel_method(method_name, params[1:])
+                type_check("server_name", params[0], basestring)
+                if params[0] in self.remote_irc_servers:
+                    server = self.remote_irc_servers[params[0]]
+                    channel_method = method[len("channel_"):]
+                    if not channel_method.startswith("_"):
+                        return server._dispatch_channel_method(channel_method, params[1:])
+                else:
+                    raise ServerError('Server "%s" is not connected.' % params[0])
 
             # Method not found!
             #TODO: Log
@@ -109,12 +115,12 @@ class IRCProxyServer(object):
 
         except ServerError as e:
             #TODO: Log
-            return Fault(2, ' '.join(e.args))
+            raise Fault(2, ' '.join(e.args))
 
         except Exception as e:
             #TODO: Log
             traceback.print_exc()
-            return Fault(3, "Proxy server received an unexpected error.  See log file for details.")
+            raise Fault(3, "Proxy server received an unexpected error.  See log file for details.")
 
     def _handle_irc_event(self, connection, irc_event):
         '''Callback for any events from irclib.
@@ -153,6 +159,7 @@ class IRCProxyServer(object):
             traceback.print_exc()
 
     def get_events_since(self, start_time):
+        type_check("start_time", start_time, int, float)
         events = self.events.get_events_since(start_time)
         for server in self.remote_irc_servers.itervalues():
             events.extend(server._get_events_since(start_time))
@@ -168,15 +175,15 @@ class IRCProxyServer(object):
         return self.remote_irc_servers.keys()
 
     def server_connect(self, server_name, nick_name, uri, port=6667,
-                       password=None, ssl=False, ipv6=False):
+                       password="", ssl=False, ipv6=False):
         '''Connect to a server.
 
         :param server_name:
-            A short identifying name for this server.  This name will be used
-            to reference the server in the future.
+            A short identifying name for this server.  This name will
+            be used to reference the server in the future.
 
         :param nick_name:
-            The name to use to connect to the server.
+            The user's nick name that is logging in.
 
         :param uri:
             URI of the server.
@@ -185,7 +192,7 @@ class IRCProxyServer(object):
             Port number of the server.  Default 6667.
 
         :param password:
-            Password, if any, to present to the server.
+            Password, if any, to present to the server.  Empty string if none.
 
         :param ssl:
             If True, ssl is used to connect to the server.
@@ -194,11 +201,24 @@ class IRCProxyServer(object):
             If True, ipv6 is used to connect to the server.
 
         '''
+        type_check("server_name", server_name, basestring)
+        type_check("nick_name", nick_name, basestring)
+        type_check("uri", uri, basestring)
+        type_check("port", port, int)
+        type_check("password", password, basestring)
+        type_check("ssl", ssl, bool)
+        type_check("ipv6", ipv6, bool)
+
+        if not password:
+            password = None
+        if server_name in self.server_list():
+            raise ServerError("Server with that name is already connected!")
+
         connection = self.irc_client.server()
         remote_server = RemoteIRCServer(connection, server_name, nick_name,
                                         uri, port, password, ssl, ipv6)
         self.remote_irc_servers[server_name] = remote_server
-        self.events.append(type="server_join", server=server_name)
+        self.events.append(type="server_connect", server=server_name)
         return True
 
     def server_disconnect(self, server_name, leave_message=""):
@@ -212,6 +232,12 @@ class IRCProxyServer(object):
             leaving.
 
         '''
+        type_check("server_name", server_name, basestring)
+        type_check("leave_message", leave_message, basestring)
+        if server_name not in self.remote_irc_servers:
+            raise ServerError('Cannot disconnect from server.  Server with '
+                'name="%s" does not exist' % server_name)
+
         server = self.remote_irc_servers[server_name]
         server._disconnect(leave_message)
         del self.remote_irc_servers[server_name]

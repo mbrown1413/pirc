@@ -3,12 +3,34 @@ import time
 
 def format_irc_event(irc_event, proxy_client):
 
-    if irc_event._eventtype in EVENT_TYPE_FORMATTERS:
+    try:
+        irc_event._eventtype = int(irc_event._eventtype)
+    except ValueError: pass
+
+    if isinstance(irc_event._eventtype, int):
+        format_func = format_error
+
+    elif irc_event._eventtype in EVENT_TYPE_FORMATTERS:
         format_func = EVENT_TYPE_FORMATTERS[irc_event._eventtype]
+
     else:
-        raise ValueError("Unhandled event type:%s\nEvent was:%s" % (irc_event._eventtype, irc_event))
+        event_dict = {
+            '_eventtype': irc_event._eventtype,
+            '_source': irc_event._source,
+            '_target': irc_event._target,
+            '_arguments': irc_event._arguments,
+        }
+        raise ValueError("Unhandled event type: %s\nEvent was: %s" % (irc_event._eventtype, event_dict))
 
     return format_func(irc_event, proxy_client)
+
+
+def format_error(irc_event, proxy_client):
+    return {
+        'type': 'irc_error',
+        'server': get_event_server_name(irc_event, proxy_client),
+        'text': ' '.join(irc_event._arguments),
+    }
 
 def format_msg(irc_event, proxy_client):
     return {
@@ -28,7 +50,7 @@ def format_server_message(irc_event, proxy_client):
 
 def format_server_join(irc_event, proxy_client):
     return {
-        'type': irc_event._eventtype,
+        'type': 'server_connect',
         'server': get_event_server_name(irc_event, proxy_client),
     }
 
@@ -74,6 +96,8 @@ EVENT_TYPE_FORMATTERS = {
     'created': format_ignore,
     'error': format_ignore,
     'disconnect': format_ignore,
+    'part': format_ignore,
+    'nosuchchannel': format_ignore,
 
 }
 

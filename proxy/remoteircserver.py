@@ -4,6 +4,7 @@ from itertools import imap
 
 from eventlist import EventList
 from errors import ServerError
+from tools import type_check
 
 SERVER_COMMANDS = [
     "action",
@@ -135,8 +136,8 @@ class RemoteIRCServer(object):
             leaving.
 
         '''
-        for channel in self.channels:
-            channel.leave(leave_message)
+        for channel_name in self.channels.keys():
+            self.channel_leave(channel_name, leave_message)
         self.connection.disconnect(leave_message)
 
     def channel_join(self, channel_name):
@@ -146,9 +147,19 @@ class RemoteIRCServer(object):
             Name of the channel to join.
 
         '''
+
+        # Validate channel_name
+        type_check("channel_name", channel_name, basestring)
+        channel_name = channel_name.lower()
+        if len(channel_name) <= 2 or len(channel_name) > 50 or \
+                channel_name[0] not in "&#+!" or \
+                ": ,"+chr(7) in channel_name:
+            raise ServerError('Invalid channel name: "%s".' % channel_name)
+
         channel = RemoteIRCChannel(self, channel_name)
         self.channels[channel_name] = channel
-        self.events.append(type="channel_join", channel=channel_name)
+        self.events.append(type="channel_join", server=self.server_name,
+                           channel=channel_name)
         return True
 
     def channel_list(self):
@@ -170,11 +181,14 @@ class RemoteIRCServer(object):
             A message that is given to the channel when leaving.
 
         '''
+        type_check("channel_name", channel_name, basestring)
+        type_check("message", message, basestring)
+
         channel = self.channels[channel_name]
-        channel._leave()
-        del channels[channel_name]
-        self.events.append(type="channel_leave", channel=channel_name,
-                           text=message)
+        channel._leave(message)
+        del self.channels[channel_name]
+        self.events.append(type="channel_leave", server=self.server_name,
+                           channel=channel_name, text=message)
         return True
 
     #XXX
@@ -218,7 +232,7 @@ class RemoteIRCChannel(object):
         self.events.append(event)
 
     def _leave(self, message):
-        self.server.connection.part(channel_name, message)
+        self.server.connection.part(self.channel_name, message)
 
     #XXX
     '''
@@ -230,6 +244,7 @@ class RemoteIRCChannel(object):
         return self.events.get_events_since(start_time)
 
     def message(self, message):
+        type_check("message", message, basestring)
         self.events.append(
             type = "privmsg",
             server = self.server.server_name,
