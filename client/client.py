@@ -4,6 +4,7 @@ import xmlrpclib
 import time
 
 from interfaces import WXInterface
+from printevent import print_event
 
 class IRCProxyClient(object):
 
@@ -18,7 +19,8 @@ class IRCProxyClient(object):
 
         # Start event subprocess
         self.event_pipe, child_conn = Pipe()
-        self.event_process = Process(target=event_loop, args=(self.proxy, child_conn,))
+        self.event_process = Process(target=event_loop, args=(self.proxy,
+                                     child_conn,))
         self.event_process.start()
 
     def get_events(self):
@@ -34,7 +36,11 @@ class IRCProxyClient(object):
             self.interface.initialize()
             self.interface.run()
         finally:
-            self.interface.uninitialize()
+            self.exit()
+
+    def exit(self):
+        self.interface.uninitialize()
+        self.event_process.terminate()
 
     def handle_events(self):
         events = self.get_events()
@@ -42,14 +48,34 @@ class IRCProxyClient(object):
             self.handle_event(event)
 
     def handle_event(self, event):
-        print event  #XXX
-        self.interface.put_text(str(event))
-        self.interface.put_text("\n")
-        # TODO: Call Event Handler
+        if event['type'] == "channel_join":
+            print "CHANNEL_JOIN:", event
+            self.interface.on_channel_join(event['server'], event['channel'])
 
-    def run_command(self, command, server=None, channel=None):
-        print command  #XXX
-        #TODO: Call Command Parser
+        print_event(event, self.interface)
+
+    def run_command(self, command_string, server=None, channel=None):
+        print command_string  #XXX
+
+        # Command
+        if len(command_string) and command_string[0] == '/':
+
+            terms = command_string.split(' ')
+            command = terms[0][1:]
+            args = terms[1:]
+
+            if command == "connect":
+                self.proxy.server_connect(*args)
+            elif command == "join":
+                self.proxy.channel_join(*args)
+
+        # Privmsg
+        elif server and channel:
+            self.proxy.channel_message(server, channel, command_string)
+
+        # Nothing
+        else:
+            pass
 
 
 def event_loop(proxy_server, pipe):
@@ -57,10 +83,10 @@ def event_loop(proxy_server, pipe):
     while True:
         events = proxy_server.get_events_since(last_event_time)
         if events:
-            #TODO: Sort events by timestamp
+            events.sort(key=lambda x:x['time'])
             pipe.send(events)
             last_event_time = time.time()
-        time.sleep(1)
+        time.sleep(2)
 
 if __name__ == "__main__":
     client = IRCProxyClient("http://localhost")

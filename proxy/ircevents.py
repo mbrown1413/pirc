@@ -54,6 +54,13 @@ def format_server_join(irc_event, proxy_client):
         'server': get_event_server_name(irc_event, proxy_client),
     }
 
+def format_channel_join(irc_event, proxy_client):
+    return {
+        'type': 'channel_join',
+        'server': get_event_server_name(irc_event, proxy_client),
+        'channel': irc_event.arguments[0]
+    }
+
 def get_event_server_name(irc_event, proxy_client):
 
     connection = irc_event.connection
@@ -77,9 +84,9 @@ EVENT_TYPE_FORMATTERS = {
     'luserchannels': format_server_message,
     'privnotice': format_server_message,
     'server_join': format_server_join,
+    'join': format_channel_join,
 
     #TODO:
-    'join': format_ignore,
     'namreply': format_ignore,
     'endofnames': format_ignore,
     'umode': format_ignore,
@@ -98,6 +105,7 @@ EVENT_TYPE_FORMATTERS = {
     'disconnect': format_ignore,
     'part': format_ignore,
     'nosuchchannel': format_ignore,
+    'mode': format_ignore,
 
 }
 

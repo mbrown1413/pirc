@@ -65,8 +65,16 @@ class RemoteIRCServer(object):
         self.uri = uri
         self.port = port
 
-        self.connection.connect(uri, port, nick_name, password,
-            ssl, ipv6)
+        for i in xrange(5):
+            self.connection.connect(uri, port, nick_name, password,
+                ssl, ipv6)
+            if self.connection.socket:
+                break
+            time.sleep(2)
+
+        if not self.connection.socket:
+            raise ServerError('Could not connect to server with ' \
+                              'uri="%s", port=%s.' % (uri, port))
 
         self.channels = {}
         self.events = EventList()
@@ -191,22 +199,6 @@ class RemoteIRCServer(object):
                            channel=channel_name, text=message)
         return True
 
-    #XXX
-    '''
-    def _get_channel_event_slice(self, start_index, end_index):
-        channel_events = imap(lambda x: x.get_event_slice(start_index,
-                              end_index), self.channels)
-        return reduce(lambda x,y: x+y, channel_events)
-
-    def _get_channel_events_since(self, start_time):
-        channel_events = imap(lambda x: x.get_events_since(start_index),
-                              self.channels)
-        return reduce(lambda x,y: x+y, channel_events)
-
-    def _get_event_slice(self, start_index, end_index):
-        return self.events.get_event_slice(start_index, end_index)
-    '''
-
     def _get_events_since(self, start_time):
         events = self.events.get_events_since(start_time)
         for channel in self.channels.itervalues():
@@ -233,12 +225,6 @@ class RemoteIRCChannel(object):
 
     def _leave(self, message):
         self.server.connection.part(self.channel_name, message)
-
-    #XXX
-    '''
-    def get_event_slice(self, start_index, end_index):
-        return self.events.get_event_slice(start_index, end_index)
-    '''
 
     def _get_events_since(self, start_time):
         return self.events.get_events_since(start_time)

@@ -160,6 +160,7 @@ class IRCProxyServer(object):
 
     def get_events_since(self, start_time):
         type_check("start_time", start_time, int, float)
+
         events = self.events.get_events_since(start_time)
         for server in self.remote_irc_servers.itervalues():
             events.extend(server._get_events_since(start_time))
