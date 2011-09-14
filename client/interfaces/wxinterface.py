@@ -66,8 +66,8 @@ class WXInterface(BaseInterface):
 
         # File menu
         file_menu = wx.Menu()
-        quit_item = wx.MenuItem(file_menu, 101, "&Quit\tCtrl+Q", "Quit PIRC")
-        wx.EVT_MENU(self.frame, 101, self.exit_callback)
+        quit_item = wx.MenuItem(file_menu, -1, "&Quit\tCtrl+Q", "Quit PIRC")
+        wx.EVT_MENU(self.frame, quit_item.GetId(), self.exit_callback)
         file_menu.AppendItem(quit_item)
         menubar.Append(file_menu, "&File")
 
@@ -85,8 +85,16 @@ class WXInterface(BaseInterface):
     def new_display_box(self):
         box = wx.TextCtrl(self.panel, -1, '', style=
                 wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH |
-                wx.TE_AUTO_URL | wx.TE_NOHIDESEL | wx.TE_LEFT)
+                wx.TE_NOHIDESEL | wx.TE_LEFT)
         box.SetDefaultStyle(self.default_style)
+        def focus_command_box(event):
+            self.command_box.SetFocus()
+            self.command_box.SetInsertionPointEnd()
+            #self.command_box.WriteText(unichr(event.GetUnicodeKey()))
+            #self.command_box.EmulateKeyPress(event)
+        #wx.EVT_KEY_DOWN(box, focus_command_box)
+        #wx.EVT_CHAR(box, focus_command_box)
+        wx.EVT_SET_FOCUS(box,  focus_command_box)
         return box
 
     def on_channel_join(self, server, channel):
@@ -105,12 +113,13 @@ class WXInterface(BaseInterface):
 
         if len(self.display_boxes) == 1:
             # Leaving the last channel, show default_box
-            new_box = self.default_box
+            new_server = None
+            new_channel = None
         else:
             current_index = self.display_boxes.index((server, channel))
-            new_box = self.display_boxes[current_index-1]
+            new_server, new_channel = self.display_boxes.keys()[current_index-1]
 
-        self.switch_display(prev_box, new_box)
+        self.switch_display(new_server, new_channel)
 
         del self.display_boxes[(server, channel)]
 
@@ -119,19 +128,17 @@ class WXInterface(BaseInterface):
 
     def switch_display(self, server, channel):
 
-        # Get prev_box
+        # Get prev_box and new_box
         if self.current_server and self.current_channel:
             prev_box = self.display_boxes[(self.current_server, self.current_channel)]
         else:
             prev_box = self.default_box
-
         new_box = self.display_boxes[(server, channel)]
 
-        new_box.Show(True)
         prev_box.Show(False)
+        new_box.Show(True)
 
         # Replace prev_box with new_box
-        #self.vertical_box.Remove(prev_box)
         self.vertical_box.Clear(False)
         self.vertical_box.Add(new_box, 1, wx.EXPAND)
         self.vertical_box.Add(self.command_box, 0, wx.EXPAND)
@@ -144,9 +151,10 @@ class WXInterface(BaseInterface):
     def put_text(self, server, channel, text):
 
         if server and channel:
-            textboxes = [ self.display_boxes[(server, channel)] ]
+            textboxes = [self.display_boxes[(server, channel)]]
         else:
-            textboxes = self.display_boxes.keys + self.default_box
+            textboxes = self.display_boxes.values()
+            textboxes.append(self.default_box)
 
         for textbox in textboxes:
             textbox.AppendText(text)

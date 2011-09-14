@@ -244,6 +244,7 @@ class ProxyXMLRPCTestCase(unittest.TestCase):
         }, since=t)
 
     ###################### Test Cases ######################
+    #TODO: Test calling methods with bad number of args.
 
     def test_server_connect_disconnect(self):
 
@@ -263,7 +264,15 @@ class ProxyXMLRPCTestCase(unittest.TestCase):
         self.assertConnectFails("server1", "pirc_test_user1")
         self.assertDisconnectWorks("server1", "kthxbye")
 
+        # Connect and disconnect to same server
+        self.assertConnectWorks("server1", "pirc_test_user1")
+        self.assertDisconnectWorks("server1", "kthxbye")
+
     def test_channel_join_leave(self):
+
+        #XXX
+        #self.proxy.server_connect("server", "pirc_test_user_3", IRC_SERVER_ADDRESS, IRC_SERVER_PORT)
+        #self.proxy.server_disconnect("server")
 
         self.assertConnectWorks("server1", "pirc_test_user1")
 
@@ -285,22 +294,57 @@ class ProxyXMLRPCTestCase(unittest.TestCase):
         raise NotImplementedError()
 
     def test_chat(self):
-        raise NotImplementedError()
 
         '''
-        # Connect to the same server twice.  This should work!
+        # Connect to the same server twice.  This should work as long as they
+        # have a unique name.
         self.assertConnectWorks("connection1", "pirc_test_user1")
         self.assertConnectWorks("connection2", "pirc_test_user2")
 
-        self.proxy.channel_message("connection1"
+        self.proxy.channel_join("connection1", "#test")
+        self.proxy.channel_join("connection2", "#test")
+
+        # Say something with connection1, it should show up in both connections
+        self.proxy.channel_message("connection1", "Test Message")
+        self.assertMatchingEvent({
+            'server': 'connection1',
+            'source': 'pirc_test_user_1',
+            'target': '#test',
+            'text': 'Test Message',
+        })
+        self.assertMatchingEvent({
+            'server': 'connection2',
+            'source': 'pirc_test_user_1',
+            'target': '#test',
+            'text': 'Test Message',
+        })
 
         self.assertDisconnectWorks("connection1")
         self.assertDisconnectWorks("connection2")
         '''
 
+        '''
+        secondary_proxy_process = start_proxy_process(bind_port=2501)
+        try:
+
+            proxy2 = get_xmlrpc_client(port=2501)
+            #proxy2 = self.proxy
+            proxy2.server_connect("server", "pirc_test_user_3", IRC_SERVER_ADDRESS, IRC_SERVER_PORT)
+            proxy2.channel_join("server", "#test")
+            proxy2.channel_message("server", "#test", "Test Message")
+            proxy2.server_disconnect("server")
+
+        finally:
+            secondary_proxy_process.terminate()
+        '''
+        pass
+
     def test_method_dispatch(self):
         raise NotImplementedError()
         # Test correct dispatching, and disallowing of private methods.
+
+    def test_erronous_nickname(self):
+        raise NotImplementedError()
 
 
 if __name__ == "__main__":

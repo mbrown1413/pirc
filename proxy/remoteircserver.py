@@ -166,8 +166,6 @@ class RemoteIRCServer(object):
 
         channel = RemoteIRCChannel(self, channel_name)
         self.channels[channel_name] = channel
-        self.events.append(type="channel_join", server=self.server_name,
-                           channel=channel_name)
         return True
 
     def channel_list(self):

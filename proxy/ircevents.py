@@ -20,7 +20,7 @@ def format_irc_event(irc_event, proxy_client):
             '_target': irc_event._target,
             '_arguments': irc_event._arguments,
         }
-        raise ValueError("Unhandled event type: %s\nEvent was: %s" % (irc_event._eventtype, event_dict))
+        raise ValueError("Unknown event type: %s\nEvent was: %s" % (irc_event._eventtype, event_dict))
 
     return format_func(irc_event, proxy_client)
 
@@ -29,7 +29,7 @@ def format_error(irc_event, proxy_client):
     return {
         'type': 'irc_error',
         'server': get_event_server_name(irc_event, proxy_client),
-        'text': ' '.join(irc_event._arguments),
+        'text': u' '.join(irc_event._arguments),
     }
 
 def format_msg(irc_event, proxy_client):
@@ -45,7 +45,7 @@ def format_server_message(irc_event, proxy_client):
     return {
         'type': irc_event._eventtype,
         'server': get_event_server_name(irc_event, proxy_client),
-        'text':irc_event._arguments[0],
+        'text': irc_event._arguments[0],
     }
 
 def format_server_join(irc_event, proxy_client):
@@ -58,7 +58,7 @@ def format_channel_join(irc_event, proxy_client):
     return {
         'type': 'channel_join',
         'server': get_event_server_name(irc_event, proxy_client),
-        'channel': irc_event.arguments[0]
+        'channel': irc_event._target,
     }
 
 def get_event_server_name(irc_event, proxy_client):
