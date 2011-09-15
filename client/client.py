@@ -67,7 +67,8 @@ class IRCProxyClient(object):
             format.
 
         .. todo:: Reference event specification for event parameter.
-        .. todo:: Some basic event checking: ex, make sure type field is present.
+        .. todo:: Some basic event checking: ex, make sure type field is
+                  present.
 
         '''
 
@@ -95,10 +96,12 @@ class IRCProxyClient(object):
             not start with '/'.
 
         :param server:
-            The server that the command corresponds to.
+            The server that the command corresponds to, or None if no server is
+            appropriate.
 
         :param channel:
-            The channel that the command corresponds to.
+            The channel that the command corresponds to, or None if no channel
+            is appropriate.
 
         .. todo:: Reference command specification
 

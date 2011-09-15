@@ -5,16 +5,13 @@ from .base import BaseInterface
 
 class WXInterface(BaseInterface):
 
-    def __init__(self, client):
-        self.client = client
+    def initialize(self):
 
         self.current_server = None
         self.current_channel = None
 
         # Maps (server, channel) to the corresponding display box
         self.display_boxes = {}
-
-    def initialize(self):
 
         ################ Layout Setup ################
         # The layout has the following hierarchy:
@@ -87,14 +84,7 @@ class WXInterface(BaseInterface):
                 wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH |
                 wx.TE_NOHIDESEL | wx.TE_LEFT)
         box.SetDefaultStyle(self.default_style)
-        def focus_command_box(event):
-            self.command_box.SetFocus()
-            self.command_box.SetInsertionPointEnd()
-            #self.command_box.WriteText(unichr(event.GetUnicodeKey()))
-            #self.command_box.EmulateKeyPress(event)
-        #wx.EVT_KEY_DOWN(box, focus_command_box)
-        #wx.EVT_CHAR(box, focus_command_box)
-        wx.EVT_SET_FOCUS(box,  focus_command_box)
+        wx.EVT_SET_FOCUS(box, self.focus_command_box)
         return box
 
     def on_channel_join(self, server, channel):
@@ -170,8 +160,14 @@ class WXInterface(BaseInterface):
 
     def command_box_callback(self, event):
         command_text = self.command_box.GetValue()
-        self.client.run_command(command_text, self.current_server, self.current_channel)
+        self.client.run_command(command_text, self.current_server,
+                                self.current_channel)
         self.command_box.Clear()
 
     def exit_callback(self, event):
         self.frame.Destroy()
+
+    def focus_command_box(self, event):
+        self.command_box.SetFocus()
+        self.command_box.SetInsertionPointEnd()
+
