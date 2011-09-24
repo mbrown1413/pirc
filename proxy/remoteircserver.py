@@ -120,21 +120,30 @@ class RemoteIRCServer(object):
 
         '''
 
-        # Method inside this instance
-        func = getattr(self, "channel_%s" % method, None)
-        if func != None and callable(func):
+        # Look for method inside this instance
+        func = getattr(self, method, None)
+        if callable(func):
             return func(*params)
 
-        # Method inside channel object
-        # The check to make sure method is not private is done in
-        # IRCProxy._dispatch, which calls this function.
-        if hasattr(RemoteIRCChannel, method) and len(params) > 0:
-            channel = self.channels[params[0]]
+        # Look for method inside channel object
+        channel_method = method[len("channel_"):]
+        if not channel_method.startswith("_") and \
+            hasattr(RemoteIRCChannel, channel_method):
+
+            # Get channel
+            if len(params) <= 0:
+                raise ServerError('Not enough arguments for method "%s".' % method)
+            channel_name = params[0]
+            if channel_name not in self.channels:
+                raise ServerError('Could not find channel "%s" in server "%s".' % (channel_name, self.server_name))
+            channel = self.channels[channel_name]
+
+            # Call channel method
             func = getattr(channel, method, None)
-            if func != None and callable(func):
+            if callable(func):
                 return func(*params[1:])
 
-        raise ServerError('Proxy server does not support method "channel_%s".' % method)
+        raise ServerError('Method "%s" not found.' % method)
 
     def _disconnect(self, leave_message=""):
         '''Disconnect from this server.

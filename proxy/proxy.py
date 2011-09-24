@@ -87,31 +87,18 @@ class IRCProxyServer(object):
             if func != None and callable(func):
                 return func(*params)
 
-            # Method inside a RemoteIRCServer instance
-            elif method.startswith("server_") and len(params) > 0:
-                server = self.remote_irc_servers[params[0]]
-                server_method = method[len("server_"):]
-                if not server_method.startswith("_"):
-                    func = getattr(server, server_method)
-                    if callable(func):
-                        return func(*params[1:])
+            # Look for method inside a RemoteIRCServer instance
+            # Prefix of server_
+            elif method.startswith("server_"):
+                return self._dispatch_server(method, params)
 
-            # Method inside a RemoteIRCChannel instance
-            # Pass this to a RemoteIRCServer, which will pass it to a
-            # RemoteIRCChannel instance.
+            # Look for method inside a RemoteIRCChannel instance
+            # Prefix of channel_
             elif method.startswith("channel_") and len(params) > 0:
-                type_check("server_name", params[0], basestring)
-                if params[0] in self.remote_irc_servers:
-                    server = self.remote_irc_servers[params[0]]
-                    channel_method = method[len("channel_"):]
-                    if not channel_method.startswith("_"):
-                        return server._dispatch_channel_method(channel_method, params[1:])
-                else:
-                    raise ServerError('Server "%s" is not connected.' % params[0])
+                return self._dispatch_channel(method, params)
 
             # Method not found!
-            #TODO: Log
-            raise ServerError('Proxy server does not support method "%s".' % method)
+            raise ServerError('Method "%s" not found.' % method)
 
         except ServerError as e:
             #TODO: Log
@@ -121,6 +108,47 @@ class IRCProxyServer(object):
             #TODO: Log
             traceback.print_exc()
             raise Fault(3, "Proxy server received an unexpected error.  See log file for details.")
+
+    def _dispatch_server(self, method, params):
+        '''Dispatch for xmlrpc methods starting with _server.'''
+
+        # Check for method existence and callability
+        server_method = method[len("server_"):]
+        if not server_method.startswith("_") and \
+                callable(getattr(RemoteIRCServer, server_method, None)):
+
+            # Get server
+            if len(params) <= 0:
+                raise ServerError('Not enough arguments for method "%s".' % method)
+            server_name = params[0]
+            type_check("server_name", server_name, basestring)
+            if server_name not in self.remote_irc_servers:
+                raise ServerError('Server with name "%s" was not found' % server_name)
+            server = self.remote_irc_servers[server_name]
+
+            # Call server method
+            func = getattr(server, server_method)
+            return func(*params[1:])
+
+        raise ServerError('Method "%s" not found.' % method)
+
+    def _dispatch_channel(self, method, params):
+        '''Dispatch for xmlrpc methods starting with _channel.'''
+
+        # Checks for methods existance an non-privacy are done in
+        # RemoteIRCServer._dispatch_channel_method
+
+        # Get server
+        if len(params) <= 0:
+            raise ServerError('Not enough arguments for method "%s".' % method)
+        server_name = params[0]
+        type_check("server_name", server_name, basestring)
+        if server_name not in self.remote_irc_servers:
+            raise ServerError('Server with name "%s" was not found' % server_name)
+        server = self.remote_irc_servers[server_name]
+
+        # Dispatch to corresponding server
+        return server._dispatch_channel_method(method, params[1:])
 
     def _handle_irc_event(self, connection, irc_event):
         '''Callback for any events from irclib.
