@@ -118,6 +118,8 @@ class IRCProxyClient(object):
                 self.proxy.server_connect(*args)
             elif command == "join":
                 self.proxy.channel_join(*args)
+            elif command == "leave":
+                self.proxy.channel_leave(server, channel)
             else:
                 pass #TODO: Invalid command, provide help!
 
