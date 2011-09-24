@@ -4,6 +4,7 @@ import wx
 from .base import BaseInterface
 
 class WXInterface(BaseInterface):
+    '''A WX Widgets irc interface.'''
 
     def initialize(self):
 
@@ -33,7 +34,8 @@ class WXInterface(BaseInterface):
         # replaced when the first channel is joined.
 
         self.app = wx.App()
-        self.frame = wx.Frame(None, -1, "Pirc", size=wx.Size(500, 300))
+        # Frame size fits 80 char width (on my computer).
+        self.frame = wx.Frame(None, -1, "Pirc", size=wx.Size(565, 300))
         self.panel = wx.Panel(self.frame, -1)
 
         self.default_style = wx.TextAttr("black", "white", wx.Font(8,
@@ -94,7 +96,8 @@ class WXInterface(BaseInterface):
         self.switch_display(server, channel)
 
         # Add menu item
-        menu_item = wx.MenuItem(self.channel_menu, -1, "%s : %s" % (server, channel), "View Channel")
+        menu_item = wx.MenuItem(self.channel_menu, -1, "%s : %s" % (server,
+                channel), "View Channel")
         wx.EVT_MENU(self.frame, menu_item.GetId(),
                 lambda event: self.switch_display(server, channel))
         self.channel_menu.AppendItem(menu_item)
@@ -106,7 +109,7 @@ class WXInterface(BaseInterface):
             new_server = None
             new_channel = None
         else:
-            current_index = self.display_boxes.index((server, channel))
+            current_index = self.display_boxes.keys().index((server, channel))
             new_server, new_channel = self.display_boxes.keys()[current_index-1]
 
         self.switch_display(new_server, new_channel)
@@ -114,16 +117,39 @@ class WXInterface(BaseInterface):
         del self.display_boxes[(server, channel)]
 
         # Remove menu item
-        #TODO
+        self.channel_menu.Remove(
+            self.channel_menu.FindItem("%s : %s" % (server, channel))
+        )
 
     def switch_display(self, server, channel):
 
-        # Get prev_box and new_box
-        if self.current_server and self.current_channel:
-            prev_box = self.display_boxes[(self.current_server, self.current_channel)]
+        if server and channel and (server,channel) not in self.display_boxes:
+            raise ValueError("Server and channel given to " \
+                             "WXInterface.switch_display does not exist.")
+
+        # Get prev_box and new_box and set window title
+        if not server or not channel:
+            # Switching to default box
+            if not self.current_server or not self.current_channel:
+                # Switching from default box to default box... for some reason
+                return
+            prev_box = self.display_boxes[(self.current_server,
+                                           self.current_channel)]
+            new_box = self.default_box
+            self.frame.SetTitle("Pirc")
+
+        elif self.current_server and self.current_channel:
+            # Switching from channel to channel
+            prev_box = self.display_boxes[(self.current_server,
+                                           self.current_channel)]
+            new_box = self.display_boxes[(server, channel)]
+            self.frame.SetTitle("%s : %s" % (server, channel))
+
         else:
+            # Switching from default box to channel
             prev_box = self.default_box
-        new_box = self.display_boxes[(server, channel)]
+            new_box = self.display_boxes[(server, channel)]
+            self.frame.SetTitle("%s : %s" % (server, channel))
 
         prev_box.Show(False)
         new_box.Show(True)
