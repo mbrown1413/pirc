@@ -188,6 +188,8 @@ class IRCProxyServer(object):
 
     def get_events_since(self, start_time):
         type_check("start_time", start_time, int, float)
+        if start_time < 0:
+            raise ServerError("start_time must be a positive integer.")
 
         events = self.events.get_events_since(start_time)
         for server in self.remote_irc_servers.itervalues():
@@ -264,8 +266,7 @@ class IRCProxyServer(object):
         type_check("server_name", server_name, basestring)
         type_check("leave_message", leave_message, basestring)
         if server_name not in self.remote_irc_servers:
-            raise ServerError('Cannot disconnect from server.  Server with '
-                'name="%s" does not exist' % server_name)
+            raise ServerError('Server with name="%s" does not exist' % server_name)
 
         server = self.remote_irc_servers[server_name]
         server._disconnect(leave_message)

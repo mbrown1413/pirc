@@ -139,7 +139,7 @@ class RemoteIRCServer(object):
             channel = self.channels[channel_name]
 
             # Call channel method
-            func = getattr(channel, method, None)
+            func = getattr(channel, channel_method, None)
             if callable(func):
                 return func(*params[1:])
 
@@ -165,14 +165,6 @@ class RemoteIRCServer(object):
 
         '''
 
-        # Validate channel_name
-        type_check("channel_name", channel_name, basestring)
-        channel_name = channel_name.lower()
-        if len(channel_name) <= 2 or len(channel_name) > 50 or \
-                channel_name[0] not in "&#+!" or \
-                ": ,"+chr(7) in channel_name:
-            raise ServerError('Invalid channel name: "%s".' % channel_name)
-
         channel = RemoteIRCChannel(self, channel_name)
         self.channels[channel_name] = channel
         return True
@@ -197,6 +189,8 @@ class RemoteIRCServer(object):
 
         '''
         type_check("channel_name", channel_name, basestring)
+        if channel_name not in self.channels:
+            raise ServerError('Could not find channel "%s" in server "%s".' % (channel_name, self.server_name))
         type_check("message", message, basestring)
 
         channel = self.channels[channel_name]
@@ -221,6 +215,16 @@ class RemoteIRCChannel(object):
     '''
 
     def __init__(self, server, channel_name):
+
+        # Validate channel_name
+        # See RFC 1459 section 1.3
+        type_check("channel_name", channel_name, basestring)
+        channel_name = channel_name.lower()  # case insensitive channel names
+        if len(channel_name) <= 2 or len(channel_name) > 50 or \
+                channel_name[0] not in "&#+!" or \
+                ": ,"+chr(7) in channel_name:
+            raise ServerError('Invalid channel name: "%s".' % channel_name)
+
         self.server = server
         self.channel_name = channel_name
 
