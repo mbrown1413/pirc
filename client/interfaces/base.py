@@ -110,6 +110,24 @@ class BaseInterface(object):
         '''
         pass
 
+    def on_server_connect(self, server):
+        '''Called when the user connects to a server.
+
+        :param server:
+            The server that was connected to.
+
+        '''
+        pass
+
+    def on_server_disconnect(self, server):
+        '''Called when the user disconnects to a server.
+
+        :param server:
+            The server that was disconnected from.
+
+        '''
+        pass
+
     def set_style(self, style):
         '''
         TODO

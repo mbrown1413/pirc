@@ -71,10 +71,16 @@ class IRCProxyClient(object):
                   present.
 
         '''
+        event_type = event['type']
 
-        if event['type'] == "channel_join":
+        # Notify interface, if applicable
+        if event_type == "server_connect":
+            self.interface.on_server_connect(event['server'])
+        elif event_type == "server_disconnect":
+            self.interface.on_server_disconnect(event['server'])
+        elif event_type == "channel_join":
             self.interface.on_channel_join(event['server'], event['channel'])
-        elif event['type'] == "channel_leave":
+        elif event_type == "channel_leave":
             self.interface.on_channel_leave(event['server'], event['channel'])
 
         self.formatter.print_event(event)
@@ -121,6 +127,7 @@ class IRCProxyClient(object):
             elif command == "leave":
                 self.proxy.channel_leave(server, channel)
             else:
+                print "Warning: Bad command!"
                 pass #TODO: Invalid command, provide help!
 
         # Privmsg

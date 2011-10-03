@@ -1,7 +1,7 @@
 
 class Formatter(object):
     '''
-    In change of taking events and formatting them into human readable text.
+    Formats events into human readable text.
     '''
 
     def __init__(self, client):

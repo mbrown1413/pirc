@@ -1,7 +1,15 @@
 
+from itertools import ifilter
+
 import wx
 
 from .base import BaseInterface
+
+def _menu_name(server, channel):
+    if channel:
+        return "%s : %s" % (server, channel)
+    else:
+        return server
 
 class WXInterface(BaseInterface):
     '''A WX Widgets irc interface.'''
@@ -55,12 +63,12 @@ class WXInterface(BaseInterface):
 
         self.panel.SetSizer(self.horizontal_box)
 
-        ################ Timer Setup ################
+        # Timer Setup
         # The timer will call self.client.handle_events() every so often.
         self.timer = wx.PyTimer(lambda: self.client.handle_events())
         self.timer.Start(2000)
 
-        ################ Menu Setup ################
+        # Menu Setup
         menubar = wx.MenuBar()
 
         # File menu
@@ -76,8 +84,7 @@ class WXInterface(BaseInterface):
 
         self.frame.SetMenuBar(menubar)
 
-        ################ Bind Callbacks ################
-
+        # Bind Callbacks
         self.frame.Bind(wx.EVT_TEXT_ENTER, self.command_box_callback)
         self.frame.Bind(wx.EVT_CLOSE, self.exit_callback)
 
@@ -86,53 +93,68 @@ class WXInterface(BaseInterface):
                 wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH |
                 wx.TE_NOHIDESEL | wx.TE_LEFT)
         box.SetDefaultStyle(self.default_style)
+        # Focus the command box whenever the display box is focused
         wx.EVT_SET_FOCUS(box, self.focus_command_box)
         return box
 
+    def on_server_connect(self, server):
+        self.window_create(server, None)
+
+    def on_server_disconnect(self, server):
+        channels = ifilter(lambda x: x[0]==server, self.display_boxes.iterkeys())
+        for channel in channels:
+            self.window_destroy(server, channel)
+        self.window_destroy(server, None)
+
     def on_channel_join(self, server, channel):
-
-        text_box = self.new_display_box()
-        self.display_boxes[(server, channel)] = text_box
-        self.switch_display(server, channel)
-
-        # Add menu item
-        menu_item = wx.MenuItem(self.channel_menu, -1, "%s : %s" % (server,
-                channel), "View Channel")
-        wx.EVT_MENU(self.frame, menu_item.GetId(),
-                lambda event: self.switch_display(server, channel))
-        self.channel_menu.AppendItem(menu_item)
+        self.window_create(server, channel)
 
     def on_channel_leave(self, server, channel):
+        self.window_destroy(server, channel)
+
+    def window_create(self, server, channel):
+
+        # Add display box
+        text_box = self.new_display_box()
+        self.display_boxes[(server, channel)] = text_box
+        self.window_switch(server, channel)
+
+        # Add menu item
+        #TODO: Add the items in a sensible order
+        menu_item = wx.MenuItem(self.channel_menu, -1, _menu_name(server,
+                channel), "View Channel")
+        wx.EVT_MENU(self.frame, menu_item.GetId(),
+                lambda event: self.window_switch(server, channel))
+        self.channel_menu.AppendItem(menu_item)
+
+    def window_destroy(self, server, channel):
 
         if len(self.display_boxes) == 1:
-            # Leaving the last channel, show default_box
+            # Leaving the last server, show default_box
             new_server = None
             new_channel = None
         else:
             current_index = self.display_boxes.keys().index((server, channel))
             new_server, new_channel = self.display_boxes.keys()[current_index-1]
 
-        self.switch_display(new_server, new_channel)
+        self.window_switch(new_server, new_channel)
 
         del self.display_boxes[(server, channel)]
 
         # Remove menu item
         self.channel_menu.Remove(
-            self.channel_menu.FindItem("%s : %s" % (server, channel))
+            self.channel_menu.FindItem(_menu_name(server, channel))
         )
 
-    def switch_display(self, server, channel):
+    def window_switch(self, server, channel):
 
         if server and channel and (server,channel) not in self.display_boxes:
             raise ValueError("Server and channel given to " \
-                             "WXInterface.switch_display does not exist.")
+                             "WXInterface.window_switch does not exist.")
 
         # Get prev_box and new_box and set window title
-        if not server or not channel:
+        if not server:
             # Switching to default box
-            if not self.current_server or not self.current_channel:
-                # Switching from default box to default box... for some reason
-                return
             prev_box = self.display_boxes[(self.current_server,
                                            self.current_channel)]
             new_box = self.default_box
@@ -143,17 +165,16 @@ class WXInterface(BaseInterface):
             prev_box = self.display_boxes[(self.current_server,
                                            self.current_channel)]
             new_box = self.display_boxes[(server, channel)]
-            self.frame.SetTitle("%s : %s" % (server, channel))
+            self.frame.SetTitle(_menu_name(server, channel))
 
         else:
             # Switching from default box to channel
             prev_box = self.default_box
             new_box = self.display_boxes[(server, channel)]
-            self.frame.SetTitle("%s : %s" % (server, channel))
+            self.frame.SetTitle(_menu_name(server, channel))
 
         prev_box.Show(False)
         new_box.Show(True)
-
         # Replace prev_box with new_box
         self.vertical_box.Clear(False)
         self.vertical_box.Add(new_box, 1, wx.EXPAND)
@@ -161,19 +182,20 @@ class WXInterface(BaseInterface):
         self.horizontal_box.RecalcSizes()
         self.vertical_box.RecalcSizes()
 
+        # Scroll to bottom of textbox
+        new_box.SetInsertionPointEnd()
+
         self.current_server = server
         self.current_channel = channel
 
     def put_text(self, server, channel, text):
 
-        if server and channel:
-            textboxes = [self.display_boxes[(server, channel)]]
+        if server:
+            textbox = self.display_boxes[(server, channel)]
         else:
-            textboxes = self.display_boxes.values()
-            textboxes.append(self.default_box)
+            textbox = self.default_box
 
-        for textbox in textboxes:
-            textbox.AppendText(text)
+        textbox.AppendText(text)
 
     def uninitialize(self):
         wx.Exit()
