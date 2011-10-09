@@ -1,2 +1,2 @@
 
-from proxy import IRCProxy, run
+from proxy import IRCProxyServer

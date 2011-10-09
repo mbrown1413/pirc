@@ -2,21 +2,39 @@
 from multiprocessing import Process, Pipe
 import xmlrpclib
 import time
+import os.path
 
 from interfaces import WXInterface
 from formatter import Formatter
+from common import securexmlrpc
+from common import config
 
 class IRCProxyClient(object):
 
-    def __init__(self, proxy_address, proxy_port=2939):
-        self.proxy_address = proxy_address
-        self.proxy_port = proxy_port
-        self.interface = None
+    def __init__(self, conf):
+        self.proxy_address = conf.proxy_address
+        self.proxy_port = conf.proxy_port
+        self.interface = None  # Defined later in self.run
         self.formatter = Formatter(self)
+
+        # Makes sure files exist
+        #TODO: Reference documentation on how to generate these files.
+        if not os.path.exists(conf.cert_file):
+            raise RuntimeError('cert_file "%s" not found!' % conf.cert_file)
+        if conf.key_file and not os.path.exists(conf.key_file):
+            raise RuntimeError('key_file "%s" not found!' % conf.key_file)
+        if not os.path.exists(conf.accepted_certs_file):
+            raise RuntimeError('accepted_certs_file "%s" not found!' % conf.accepted_certs_file)
 
         #TODO: proxy and port need to be parsed more robustly with urlparse
         self.proxy = xmlrpclib.ServerProxy(
-            "%s:%s/" % (proxy_address, proxy_port))
+            "%s:%s/" % (self.proxy_address, self.proxy_port),
+            transport = securexmlrpc.HTTPSTransport(
+                certfile = conf.cert_file,
+                keyfile = conf.key_file,
+                ca_certs = conf.accepted_certs_file,
+            )
+        )
 
         # Start event subprocess
         self.event_pipe, child_conn = Pipe()
@@ -158,9 +176,3 @@ def event_loop(proxy_server, pipe):
             pipe.send(events)
             last_event_time = time.time()
         time.sleep(2)
-
-if __name__ == "__main__":
-    client = IRCProxyClient("http://localhost")
-    interface = WXInterface(client)
-    client.run(interface)
-

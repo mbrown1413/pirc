@@ -1,6 +1,7 @@
 
 import time
 import traceback
+import os.path
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from xmlrpclib import Fault
 
@@ -12,6 +13,7 @@ from errors import ServerError
 from eventlist import EventList
 from ircevents import format_irc_event
 from tools import type_check
+from common import securexmlrpc
 
 class IRCProxyServer(object):
     '''The XMLRPC interface that proxy clients use.
@@ -24,16 +26,30 @@ class IRCProxyServer(object):
 
     '''
 
-    def __init__(self, bind_address, bind_port):
+    def __init__(self, conf):
         '''Starts the irc client library and XMLRPC Server.'''
         self.remote_irc_servers = {}
         self.events = EventList()
+
+        # Makes sure files exist
+        #TODO: Reference documentation on how to generate these files.
+        if not os.path.exists(conf.cert_file):
+            raise RuntimeError('cert_file "%s" not found!' % conf.cert_file)
+        if conf.key_file and not os.path.exists(conf.key_file):
+            raise RuntimeError('key_file "%s" not found!' % conf.key_file)
+        if not os.path.exists(conf.accepted_certs_file):
+            raise RuntimeError('accepted_certs_file "%s" not found!' % conf.accepted_certs_file)
 
         self.irc_client = irclib.IRC()
         self.irc_client.add_global_handler("all_events", self._handle_irc_event)
 
         # Start xmlrpc server
-        self.xmlrpc_server = SimpleXMLRPCServer((bind_address, bind_port))
+        self.xmlrpc_server = securexmlrpc.SecureXMLRPCServer(
+            (conf.bind_address, conf.bind_port),
+            certfile = conf.cert_file,
+            keyfile = conf.key_file,
+            ca_certs = conf.accepted_certs_file,
+        )
         self.xmlrpc_server.register_instance(self)
         self.xmlrpc_server.timeout = 0.1 # Make handle_request() non-blocking
 
@@ -273,14 +289,4 @@ class IRCProxyServer(object):
         del self.remote_irc_servers[server_name]
         self.events.append(type="server_disconnect", server=server_name)
         return True
-
-def run(bind_port=2939, bind_address="0.0.0.0"):
-    '''Runs the proxy server.'''
-
-    # Start local IRC client and proxy
-    proxy = IRCProxyServer(bind_address, bind_port)
-    proxy._run()
-
-if __name__ == "__main__":
-    run()
 

@@ -75,7 +75,7 @@ trusted certificate authorities.  For our purposes (because our certificates
 are self signed) they just contain a list of certificates which are trusted.
 To create one of these files, copy the section from a certificate between (and
 including) the lines "-----BEGIN CERTIFICATE-----" and
-"-----END CERTIFICATE-----".  
+"-----END CERTIFICATE-----".
 
 
 """
