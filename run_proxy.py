@@ -1,10 +1,20 @@
 
-from proxy import IRCProxy
+from proxy import IRCProxyServer
+from common import config
 
-#TODO: Make this a neat command line interface
 if __name__ == "__main__":
-    proxy = IRCProxy(
-        bind_address="localhost",
-        bind_port=2939,
-    )
-    proxy.run()
+
+    try:
+        conf = config.ConfigParser("conf/proxy.conf", [
+            ("cert_file", basestring, config.REQUIRED),
+            ("key_file", basestring, None),
+            ("accepted_certs_file", basestring, None),
+            ("bind_address", basestring, "0.0.0.0"),
+            ("bind_port", int, 2939),
+        ])
+    except conf.ConfigError as e:
+        raise #TODO
+
+    proxy = IRCProxyServer(conf)
+    proxy._run()
+
