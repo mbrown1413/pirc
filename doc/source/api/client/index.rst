@@ -4,4 +4,10 @@ Client
 
 .. automodule:: client
 
-.. todo:: Client API docs
+.. toctree::
+    :maxdepth: 2
+
+    interfaces
+    formatter
+
+.. todo:: IRCProxyClient docs

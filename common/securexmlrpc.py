@@ -70,7 +70,7 @@ like.  In this case, you would pass the "keyfile" keyword argument to
 `HTTPSTransport` and `SecureXMLRPCServer`, specifying the file with the private
 key.
 
-The in the examples above, the *_trusted.pem files contains certificates for
+The in the examples above, the \*_trusted.pem files contains certificates for
 trusted certificate authorities.  For our purposes (because our certificates
 are self signed) they just contain a list of certificates which are trusted.
 To create one of these files, copy the section from a certificate between (and

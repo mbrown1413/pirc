@@ -7,7 +7,7 @@ class BaseInterface(object):
     Methods which raise a `NotImplemented` error must be implemented.  All other
     methods are optional.
 
-    An interface has to follow the basic text input and output model::
+    An interface has to follow the basic text input and output model:
 
     * When text is entered by the user (a command or message) the interface
       should call `client.run_command`.  Associated server and channel should
@@ -73,7 +73,7 @@ class BaseInterface(object):
 
         A blocking call that goes into an infinite loop waiting for user
         interface events.  When this function exits, the client closes.
-        `self.client.handle_event **must** be called periodically, or IRC
+        `self.client.handle_event` **must** be called periodically, or IRC
         events will never be received.
 
         '''

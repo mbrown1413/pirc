@@ -54,6 +54,8 @@ class RemoteIRCServer(object):
     Any method that does not start with an underscore is served via XMLRPC
     under the name server_<method>.
 
+    .. todo:: Rename to IRCServeServer
+
     '''
 
     def __init__(self, connection, server_name, nick_name, uri, port, password=None,
@@ -211,6 +213,8 @@ class RemoteIRCChannel(object):
 
     Any method that does not start with an underscore is served via XMLRPC
     under the name channel_<method>.
+
+    .. todo:: Rename to IRCChannel
 
     '''
 

@@ -2,6 +2,9 @@
 import time
 
 class EventList(object):
+    """
+    .. todo:: Rename EventList to EventContainer
+    """
 
     def __init__(self):
         self.events = []

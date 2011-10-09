@@ -17,7 +17,9 @@ Contents:
 .. toctree::
     :maxdepth: 2
 
+    tutorial
     api/index
+    todo
 
 Indices and tables
 ==================
@@ -25,7 +27,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
-Todo list
-=========
-.. todolist::
