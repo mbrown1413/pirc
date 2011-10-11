@@ -224,6 +224,8 @@ class IRCProxyServer(object):
         type_check("password", password, basestring)
         type_check("ssl", ssl, bool)
         type_check("ipv6", ipv6, bool)
+        if port < 0 or port > 65535:
+            raise ServerError("port must be between 0 and 65535 inclusive.")
 
         if not password:
             password = None

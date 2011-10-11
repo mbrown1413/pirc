@@ -9,8 +9,8 @@ Proxy
 
     xmlrpc_interface
     events
-    ircserver
-    ircchannel
+
+    architecture
     eventcontainer
 
 Proxy Interface:
@@ -20,6 +20,5 @@ Proxy Interface:
 
 Internal Documentation:
 
-* :doc:`ircserver`
-* :doc:`ircchannel`
+* :doc:`architecture`
 * :doc:`eventcontainer`
