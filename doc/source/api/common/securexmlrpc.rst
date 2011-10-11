@@ -6,9 +6,9 @@ securexmlrpc - Secure XMLRPC Server and Client
 
 Module Contents
 ---------------
-.. autoclass:: common.securexmlrpc.SecureXMLRPCServer
-    :members:
-.. autoclass:: common.securexmlrpc.HTTPSTransport
-    :members:
-.. autoclass:: common.securexmlrpc.HTTPSConnection
-    :members:
+.. autoclass:: common.securexmlrpc.SecureXMLRPCServer()
+    :members: __init__
+.. autoclass:: common.securexmlrpc.HTTPSTransport()
+    :members: __init__
+.. autoclass:: common.securexmlrpc.HTTPSConnection()
+    :members: __init__

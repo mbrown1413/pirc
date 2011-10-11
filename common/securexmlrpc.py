@@ -154,6 +154,27 @@ class HTTPSConnection(httplib.HTTPConnection):
     def __init__(self, host, port=None, keyfile=None, certfile=None,
                  cert_reqs=ssl.CERT_REQUIRED, ca_certs=None, strict=None,
                  timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None):
+        """
+        The same as httplib.HTTPConnection, but takes some extra arguments
+        that allow for certificate checking.  These extra arguments are passed
+        into `ssl.wrap_socket`.
+
+        :param certfile:
+            File with PEM formatted certificate.
+
+        :param keyfile:
+            File with PEM formatted private key.  Not needed if certfile
+            contains private key.
+
+        :param cert_reqs:
+            Specifies whether a certificate is needed from the other end of
+            the connection.  Should be one of `ssl.CERT_*`.
+
+        :param ca_certs:
+            File containing accepted "certification authority" certificates.
+
+        """
+
         httplib.HTTPConnection.__init__(self, host, port, strict, timeout,
                                         source_address)
         self.keyfile = keyfile
@@ -200,16 +221,16 @@ class HTTPSTransport(xmlrpclib.Transport):
     def __init__(self, certfile=None, keyfile=None, ca_certs=None,
                  use_datetime=0):
         """
-        The same as httplib.HTTPTransport, but takes some extra arguments that
-        allow for certificate checking.  These extra arguments are passed
+        The same as xmlrpclib.SafeTransport, but takes some extra arguments
+        that allow for certificate checking.  These extra arguments are passed
         directly into `ssl.wrap_socket`.
 
         :param certfile:
             File with PEM formatted certificate.
 
         :param keyfile:
-            File with PEM formatted private key.  Not needed if certfile contains
-            private key.
+            File with PEM formatted private key.  Not needed if certfile
+            contains private key.
 
         :param ca_certs:
             File containing accepted "certification authority" certificates.
