@@ -73,8 +73,8 @@ class BaseInterface(object):
 
         A blocking call that goes into an infinite loop waiting for user
         interface events.  When this function exits, the client closes.
-        `self.client.handle_event` **must** be called periodically, or IRC
-        events will never be received.
+        `self.client.handle_event` **must** be called periodically in this
+        method, or IRC events will never be received.
 
         '''
         raise NotImplementedError("This method must be implemented.")

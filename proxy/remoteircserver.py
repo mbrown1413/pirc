@@ -160,36 +160,15 @@ class RemoteIRCServer(object):
         self.connection.disconnect(leave_message)
 
     def channel_join(self, channel_name):
-        '''Join a channel.
-
-        :param channel_name:
-            Name of the channel to join.
-
-        '''
 
         channel = RemoteIRCChannel(self, channel_name)
         self.channels[channel_name] = channel
         return True
 
     def channel_list(self):
-        '''List channels in this server that the user is currently in.
-
-        :returns:
-            A list of channels.
-
-        '''
         return self.channels.keys()
 
     def channel_leave(self, channel_name, message=""):
-        '''Leave a channel.
-
-        :param channel_name:
-            The name of the channel to join.
-
-        :param message:
-            A message that is given to the channel when leaving.
-
-        '''
         type_check("channel_name", channel_name, basestring)
         if channel_name not in self.channels:
             raise ServerError('Could not find channel "%s" in server "%s".' % (channel_name, self.server_name))

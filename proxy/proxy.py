@@ -205,7 +205,7 @@ class IRCProxyServer(object):
     def get_events_since(self, start_time):
         type_check("start_time", start_time, int, float)
         if start_time < 0:
-            raise ServerError("start_time must be a positive integer.")
+            raise ServerError("start_time must be a positive number.")
 
         events = self.events.get_events_since(start_time)
         for server in self.remote_irc_servers.itervalues():
@@ -213,41 +213,10 @@ class IRCProxyServer(object):
         return events
 
     def server_list(self):
-        '''List server names that are connected.
-
-        :returns:
-            A list of server names.
-
-        '''
         return self.remote_irc_servers.keys()
 
     def server_connect(self, server_name, nick_name, uri, port=6667,
                        password="", ssl=False, ipv6=False):
-        '''Connect to a server.
-
-        :param server_name:
-            A short identifying name for this server.  This name will
-            be used to reference the server in the future.
-
-        :param nick_name:
-            The user's nick name that is logging in.
-
-        :param uri:
-            URI of the server.
-
-        :param port:
-            Port number of the server.  Default 6667.
-
-        :param password:
-            Password, if any, to present to the server.  Empty string if none.
-
-        :param ssl:
-            If True, ssl is used to connect to the server.
-
-        :param ipv6:
-            If True, ipv6 is used to connect to the server.
-
-        '''
         type_check("server_name", server_name, basestring)
         type_check("nick_name", nick_name, basestring)
         type_check("uri", uri, basestring)
@@ -269,16 +238,6 @@ class IRCProxyServer(object):
         return True
 
     def server_disconnect(self, server_name, leave_message=""):
-        '''Disconnect from the remote IRC server.
-
-        :param server_name:
-            The name of the server that was given in server_connect().
-
-        :param leave_message:
-            A message that is given to each channel and the server when
-            leaving.
-
-        '''
         type_check("server_name", server_name, basestring)
         type_check("leave_message", leave_message, basestring)
         if server_name not in self.remote_irc_servers:
