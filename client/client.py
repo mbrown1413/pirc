@@ -3,6 +3,8 @@ from multiprocessing import Process, Pipe
 import xmlrpclib
 import time
 import os.path
+import socket
+from sys import exit
 
 from interfaces import WXInterface
 from formatter import Formatter
@@ -45,6 +47,8 @@ class IRCProxyClient(object):
     def get_events(self):
         if self.event_pipe.poll(0.1):
             events = self.event_pipe.recv()
+            if isinstance(events, _KillSignal):
+                exit(1)
             return events
         else:
             return []
@@ -169,10 +173,35 @@ class IRCProxyClient(object):
 
 def event_loop(proxy_server, pipe):
     last_event_time = 0
+    last_error = None
     while True:
-        events = proxy_server.get_events_since(last_event_time)
-        if events:
-            events.sort(key=lambda x:x['time'])
-            pipe.send(events)
-            last_event_time = time.time()
+        try:
+
+            events = proxy_server.get_events_since(last_event_time)
+            if events:
+                events.sort(key=lambda x:x['time'])
+                pipe.send(events)
+                last_event_time = time.time()
+            if last_error != None:
+                #TODO: Log
+                print "Connection to proxy resumed!"
+                last_error = None
+
+        # Fail gracefully when proxy cannot be accessed
+        except socket.gaierror as e:
+            if str(e) != str(last_error):  # Ignore repeat errors
+                #TODO: Log
+                print "Unable to reach proxy:", e
+                last_error = e
+
+        # Kill superprocess before raising
+        except Exception as e:
+            pipe.send(_KillSignal())
+            raise
+
         time.sleep(2)
+
+class _KillSignal(Exception):
+    '''Sent between processes to indicate that the recipienc should exit.'''
+    pass
+
