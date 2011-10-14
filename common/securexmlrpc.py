@@ -118,8 +118,8 @@ class SecureXMLRPCServer(SimpleXMLRPCServer):
             File containing accepted "certification authority" certificates.
 
         :param ssl_version:
-            SSL version to use.  Must be one of `ssl.PROTOCOL_*`.  Default
-            `ssl.PROTOCOL_TLSv1`.
+            SSL protocol version to use.  Must be one of `ssl.PROTOCOL_*`.
+            Default `ssl.PROTOCOL_TLSv1`.
         """
 
         self.keyfile = kwargs.pop("keyfile", None)
@@ -131,17 +131,23 @@ class SecureXMLRPCServer(SimpleXMLRPCServer):
 
     def get_request(self):
         """
-        Same as SimpleXMLRPCServer.get_request, but it uses ssl and checks
+        as SimpleXMLRPCServer.get_request, but it uses ssl and checks
         certificates.
         """
-        newsocket, fromaddr = self.socket.accept()
-        sslsocket = ssl.wrap_socket(newsocket,
-                                    server_side = True,
-                                    keyfile = self.keyfile,
-                                    certfile = self.certfile,
-                                    cert_reqs = self.cert_reqs,
-                                    ca_certs = self.ca_certs,
-                                    ssl_version = ssl.PROTOCOL_TLSv1)
+        try:
+            newsocket, fromaddr = self.socket.accept()
+            sslsocket = ssl.wrap_socket(newsocket,
+                                        server_side = True,
+                                        keyfile = self.keyfile,
+                                        certfile = self.certfile,
+                                        cert_reqs = self.cert_reqs,
+                                        ca_certs = self.ca_certs,
+                                        ssl_version = self.ssl_version)
+        except socket.error as e:
+            # SocketServer._handle_request_noblock ignores socket.error, so we
+            # print it out before raising.
+            print e
+            raise
         return sslsocket, fromaddr
 
 class HTTPSConnection(httplib.HTTPConnection):
@@ -152,8 +158,9 @@ class HTTPSConnection(httplib.HTTPConnection):
     default_port = httplib.HTTPS_PORT
 
     def __init__(self, host, port=None, keyfile=None, certfile=None,
-                 cert_reqs=ssl.CERT_REQUIRED, ca_certs=None, strict=None,
-                 timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None):
+                 cert_reqs=ssl.CERT_REQUIRED, ca_certs=None,
+                 ssl_version=ssl.PROTOCOL_TLSv1, strict=None,
+                 timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
         """
         The same as httplib.HTTPConnection, but takes some extra arguments
         that allow for certificate checking.  These extra arguments are passed
@@ -173,14 +180,18 @@ class HTTPSConnection(httplib.HTTPConnection):
         :param ca_certs:
             File containing accepted "certification authority" certificates.
 
+        :param ssl_version:
+            SSL protocol version to use.  Must be one of `ssl.PROTOCOL_*`.
+            Default `ssl.PROTOCOL_TLSv1`.
+
         """
 
-        httplib.HTTPConnection.__init__(self, host, port, strict, timeout,
-                                        source_address)
+        httplib.HTTPConnection.__init__(self, host, port, strict, timeout)
         self.keyfile = keyfile
         self.certfile = certfile
         self.cert_reqs = cert_reqs
         self.ca_certs = ca_certs
+        self.ssl_version = ssl_version
 
     def connect(self):
         """
@@ -188,18 +199,17 @@ class HTTPSConnection(httplib.HTTPConnection):
         ssl.wrap_socket that tell it to check certificates.
         """
 
-        sock = socket.create_connection((self.host, self.port),
-                                        self.timeout, self.source_address)
-        if self._tunnel_host:
-            self.sock = sock
-            self._tunnel()
+        sock = socket.create_connection((self.host, self.port), self.timeout)
         self.sock = ssl.wrap_socket(
             sock,
             keyfile = self.keyfile,
             certfile = self.certfile,
             cert_reqs = self.cert_reqs,
             ca_certs = self.ca_certs,
+            ssl_version = self.ssl_version,
         )
+        if self._tunnel_host:
+            self._tunnel()
 
 class HTTPSTransport(xmlrpclib.Transport):
     """XMLRPC Transport subclass for HTTPS that checks certificates.
@@ -219,7 +229,7 @@ class HTTPSTransport(xmlrpclib.Transport):
     """
 
     def __init__(self, certfile=None, keyfile=None, ca_certs=None,
-                 use_datetime=0):
+                 ssl_version=ssl.PROTOCOL_TLSv1, use_datetime=0):
         """
         The same as xmlrpclib.SafeTransport, but takes some extra arguments
         that allow for certificate checking.  These extra arguments are passed
@@ -235,6 +245,10 @@ class HTTPSTransport(xmlrpclib.Transport):
         :param ca_certs:
             File containing accepted "certification authority" certificates.
 
+        :param ssl_version:
+            SSL protocol version to use.  Must be one of `ssl.PROTOCOL_*`.
+            Default `ssl.PROTOCOL_TLSv1`.
+
         :param use_datetime:
             Same as `httplib.HTTPTransport`.
 
@@ -244,14 +258,13 @@ class HTTPSTransport(xmlrpclib.Transport):
         self.keyfile = keyfile
         self.certfile = certfile
         self.ca_certs = ca_certs
+        self.ssl_version = ssl_version
 
     def make_connection(self, host):
         """
         Same as xmlrpclib.Transport.make_connection, but it uses
         HTTPSConnection (which checks certificates).
         """
-        if self._connection and host == self._connection[0]:
-            return self._connection[1]
         chost, self._extra_headers, x509 = self.get_host_info(host)
         self._connection = host, HTTPSConnection(
             chost,
@@ -259,6 +272,54 @@ class HTTPSTransport(xmlrpclib.Transport):
             keyfile = self.keyfile,
             certfile = self.certfile,
             ca_certs = self.ca_certs,
+            ssl_version = self.ssl_version,
         )
         return self._connection[1]
 
+    # The following methods were copied from xmlrpclib.Transport in Python
+    # 2.7.  The underlying problem is that in 2.6, self.make_connection would
+    # return a httplib.HTTP object, but in 2.7 it returns an
+    # httplib.HTTPConnection object.  The implementation of
+    # SecureXMLRPCServer.make_connection has to choose which to return (it
+    # returns an HTTPConnection like object: HTTPSConnection).  So these
+    # methods are copied here to make Python 2.6 work with HTTPConnection like
+    # objects.
+
+    def request(self, host, handler, request_body, verbose=0):
+        # issue XML-RPC request
+
+        h = self.make_connection(host)
+        if verbose:
+            h.set_debuglevel(1)
+
+        try:
+            self.send_request(h, handler, request_body)
+            self.send_host(h, host)
+            self.send_user_agent(h)
+            self.send_content(h, request_body)
+
+            response = h.getresponse()
+            if response.status == 200:
+                self.verbose = verbose
+                return self.parse_response(response)
+        except xmlrpclib.Fault:
+            raise
+        except Exception:
+            # All unexpected errors leave connection in
+            # a strange state, so we clear it.
+            self.close()
+            raise
+
+        #discard any response data and raise exception
+        if (response.getheader("content-length", 0)):
+            response.read()
+        raise xmlrpclib.ProtocolError(
+            host + handler,
+            response.status, response.reason,
+            response.msg,
+            )
+
+    def close(self):
+        if self._connection[1]:
+            self._connection[1].close()
+            self._connection = (None, None)
