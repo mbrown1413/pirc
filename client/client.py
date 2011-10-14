@@ -181,7 +181,7 @@ def event_loop(proxy_server, pipe):
             if events:
                 events.sort(key=lambda x:x['time'])
                 pipe.send(events)
-                last_event_time = time.time()
+                last_event_time = events[-1]['time']
             if last_error != None:
                 #TODO: Log
                 print "Connection to proxy resumed!"
