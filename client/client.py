@@ -135,31 +135,59 @@ class IRCProxyClient(object):
 
         '''
 
-        # Command
-        if len(command_string) and command_string[0] == '/':
+        try:
 
-            terms = command_string.split(' ')
-            command = terms[0][1:]
-            args = terms[1:]
+            # Command
+            if len(command_string) and command_string[0] == '/':
 
-            if command == "connect":
-                self.proxy.server_connect(*args)
-            elif command == "join":
-                self.proxy.channel_join(*args)
-            elif command == "leave":
-                self.proxy.channel_leave(server, channel)
+                terms = command_string.split(' ')
+                command = terms[0][1:]
+                args = terms[1:]
+
+                if command == "connect":
+                    if len(args) == 2:
+                        self.proxy.server_connect(args[0], args[1], self.conf.default_username)
+                    elif len(args) == 3:
+                        self.proxy.server_connect(*args)
+                    else:
+                        #TODO: Print useage message
+                        print "Wrong number of args"
+
+                elif command == "join":
+                    if len(args) != 1:
+                        #TODO: Print useage message
+                        print "Wrong number of args"
+                    elif not server:
+                        #TODO: Print useage message
+                        print "You must connect a server before joining a channel"
+                    else:
+                        self.proxy.channel_join(server, args[0])
+
+                elif command == "leave":
+                    if not server or not channel:
+                        if len(args) == 2:
+                            self.proxy.channel_leave(*args)
+                        else:
+                            #TODO: Print useage message
+                            print "Wrong number of args"
+                    else:
+                        self.proxy.channel_leave(server, channel)
+
+                else:
+                    print "Warning: Bad command!"
+                    pass #TODO: Invalid command, provide help!
+
+            # Privmsg
+            elif server and channel:
+                self.proxy.channel_message(server, channel, command_string)
+
+            # Nothing
             else:
-                print "Warning: Bad command!"
-                pass #TODO: Invalid command, provide help!
+                #TODO: Provide better help!
+                print "Cannot chat outside of a channel!"
 
-        # Privmsg
-        elif server and channel:
-            self.proxy.channel_message(server, channel, command_string)
-
-        # Nothing
-        else:
-            #TODO: Invalid command, provide help!
-            print "Warning: Bad command!"
+        except xmlrpclib.Fault as fault:
+            self.put_text(server, channel, "Error: %s" % fault.faultString)
 
     def put_text(self, server, channel, text):
         '''Pass through function for interface.put_text.
