@@ -109,10 +109,14 @@ class WXInterface(BaseInterface):
     def on_channel_join(self, server, channel):
         self.window_create(server, channel)
 
-    def on_channel_leave(self, server, channel):
+    def on_channel_part(self, server, channel):
         self.window_destroy(server, channel)
 
     def window_create(self, server, channel):
+
+        if (server, channel) in self.display_boxes:
+            raise ValueError("Cannot create window, server and channel "
+                             "already exist: (%s, %s)" % (server, channel))
 
         # Add display box
         text_box = self.new_display_box()
@@ -129,6 +133,7 @@ class WXInterface(BaseInterface):
 
     def window_destroy(self, server, channel):
 
+        # Determine window to switch to after this one is gone
         if len(self.display_boxes) == 1:
             # Leaving the last server, show default_box
             new_server = None

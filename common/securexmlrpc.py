@@ -229,7 +229,8 @@ class HTTPSTransport(xmlrpclib.Transport):
     """
 
     def __init__(self, certfile=None, keyfile=None, ca_certs=None,
-                 ssl_version=ssl.PROTOCOL_TLSv1, use_datetime=0):
+                 cert_reqs=ssl.CERT_REQUIRED, ssl_version=ssl.PROTOCOL_TLSv1,
+                 use_datetime=0):
         """
         The same as xmlrpclib.SafeTransport, but takes some extra arguments
         that allow for certificate checking.  These extra arguments are passed
@@ -241,6 +242,10 @@ class HTTPSTransport(xmlrpclib.Transport):
         :param keyfile:
             File with PEM formatted private key.  Not needed if certfile
             contains private key.
+
+        :param cert_reqs:
+            Specifies whether a certificate is needed from the other end of
+            the connection.  Should be one of `ssl.CERT_*`.
 
         :param ca_certs:
             File containing accepted "certification authority" certificates.
@@ -257,6 +262,7 @@ class HTTPSTransport(xmlrpclib.Transport):
         xmlrpclib.Transport.__init__(self, use_datetime)
         self.keyfile = keyfile
         self.certfile = certfile
+        self.cert_reqs = cert_reqs
         self.ca_certs = ca_certs
         self.ssl_version = ssl_version
 
@@ -271,6 +277,7 @@ class HTTPSTransport(xmlrpclib.Transport):
             None,
             keyfile = self.keyfile,
             certfile = self.certfile,
+            cert_reqs = self.cert_reqs,
             ca_certs = self.ca_certs,
             ssl_version = self.ssl_version,
         )

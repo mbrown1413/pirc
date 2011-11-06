@@ -4,6 +4,7 @@ import traceback
 import os.path
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from xmlrpclib import Fault
+import ssl
 
 #TODO: Catch an import error from this library
 import irclib
@@ -33,12 +34,16 @@ class IRCProxyServer(object):
 
         # Makes sure files exist
         #TODO: Reference documentation on how to generate these files.
-        if not os.path.exists(conf.cert_file):
+        if conf.cert_file and not os.path.exists(conf.cert_file):
             raise RuntimeError('cert_file "%s" not found!' % conf.cert_file)
-        if conf.key_file and not os.path.exists(conf.key_file):
+        if conf.key_file and conf.key_file and not os.path.exists(conf.key_file):
             raise RuntimeError('key_file "%s" not found!' % conf.key_file)
-        if not os.path.exists(conf.accepted_certs_file):
+        if not conf.accepted_certs_file:
+            certs_required = ssl.CERT_NONE
+        elif not os.path.exists(conf.accepted_certs_file):
             raise RuntimeError('accepted_certs_file "%s" not found!' % conf.accepted_certs_file)
+        else:
+            certs_required = ssl.CERT_REQUIRED
 
         self.irc_client = irclib.IRC()
         self.irc_client.add_global_handler("all_events", self._handle_irc_event)
@@ -49,6 +54,7 @@ class IRCProxyServer(object):
             certfile = conf.cert_file,
             keyfile = conf.key_file,
             ca_certs = conf.accepted_certs_file,
+            cert_reqs = certs_required,
         )
         self.xmlrpc_server.register_instance(self)
         self.xmlrpc_server.timeout = 0.1 # Make handle_request() non-blocking
@@ -239,14 +245,14 @@ class IRCProxyServer(object):
         self.events.append(type="server_connect", server=server_name)
         return True
 
-    def server_disconnect(self, server_name, leave_message=""):
+    def server_disconnect(self, server_name, part_message=""):
         type_check("server_name", server_name, basestring)
-        type_check("leave_message", leave_message, basestring)
+        type_check("part_message", part_message, basestring)
         if server_name not in self.remote_irc_servers:
             raise ServerError('Server with name="%s" does not exist' % server_name)
 
         server = self.remote_irc_servers[server_name]
-        server._disconnect(leave_message)
+        server._disconnect(part_message)
         del self.remote_irc_servers[server_name]
         self.events.append(type="server_disconnect", server=server_name)
         return True

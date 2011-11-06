@@ -2,9 +2,10 @@
 import time
 from itertools import imap
 
-from eventlist import EventList
-from errors import ServerError
-from tools import type_check
+from .eventlist import EventList
+from .errors import ServerError
+from .tools import type_check
+from common import ircutil
 
 SERVER_COMMANDS = [
     "action",
@@ -147,17 +148,17 @@ class RemoteIRCServer(object):
 
         raise ServerError('Method "%s" not found.' % method)
 
-    def _disconnect(self, leave_message=""):
+    def _disconnect(self, part_message=""):
         '''Disconnect from this server.
 
-        :param leave_message:
+        :param part_message:
             A message that is given to each channel and the server when
             leaving.
 
         '''
         for channel_name in self.channels.keys():
-            self.channel_leave(channel_name, leave_message)
-        self.connection.disconnect(leave_message)
+            self.channel_part(channel_name, part_message)
+        self.connection.disconnect(part_message)
 
     def channel_join(self, channel_name):
 
@@ -168,17 +169,17 @@ class RemoteIRCServer(object):
     def channel_list(self):
         return self.channels.keys()
 
-    def channel_leave(self, channel_name, message=""):
+    def channel_part(self, channel_name, message=""):
         type_check("channel_name", channel_name, basestring)
         if channel_name not in self.channels:
             raise ServerError('Could not find channel "%s" in server "%s".' % (channel_name, self.server_name))
         type_check("message", message, basestring)
 
         channel = self.channels[channel_name]
-        channel._leave(message)
+        channel._part(message)
         del self.channels[channel_name]
-        self.events.append(type="channel_leave", server=self.server_name,
-                           channel=channel_name, text=message)
+        #self.events.append(type="channel_part", server=self.server_name,
+        #                   channel=channel_name, text=message)
         return True
 
     def _get_events_since(self, start_time):
@@ -199,13 +200,10 @@ class RemoteIRCChannel(object):
 
     def __init__(self, server, channel_name):
 
-        # Validate channel_name
-        # See RFC 1459 section 1.3
         type_check("channel_name", channel_name, basestring)
-        channel_name = channel_name.lower()  # case insensitive channel names
-        if len(channel_name) <= 2 or len(channel_name) > 50 or \
-                channel_name[0] not in "&#+!" or \
-                ": ,"+chr(7) in channel_name:
+        try:
+            channel_name = ircutil.chan_validate(channel_name)
+        except ValueError as e:
             raise ServerError('Invalid channel name: "%s".' % channel_name)
 
         self.server = server
@@ -217,7 +215,7 @@ class RemoteIRCChannel(object):
     def _handle_irc_event(self, event):
         self.events.append(event)
 
-    def _leave(self, message):
+    def _part(self, message):
         self.server.connection.part(self.channel_name, message)
 
     def _get_events_since(self, start_time):

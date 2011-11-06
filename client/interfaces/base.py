@@ -98,7 +98,7 @@ class BaseInterface(object):
         '''
         pass
 
-    def on_channel_leave(self, server, channel):
+    def on_channel_part(self, server, channel):
         '''Called when the user leaves a channel.
 
         :param server:

@@ -1,6 +1,8 @@
 
 import time
 
+from common import ircutil
+
 def format_irc_event(irc_event, proxy_client):
 
     try:
@@ -28,14 +30,14 @@ def format_irc_event(irc_event, proxy_client):
 def format_error(irc_event, proxy_client):
     return {
         'type': 'irc_error',
-        'server': get_event_server_name(irc_event, proxy_client),
+        'server': get_server(irc_event, proxy_client).server_name,
         'text': u' '.join(irc_event._arguments),
     }
 
 def format_msg(irc_event, proxy_client):
     return {
         'type': irc_event._eventtype,
-        'server': get_event_server_name(irc_event, proxy_client),
+        'server': get_server(irc_event, proxy_client).server_name,
         'source': irc_event._source,
         'target': irc_event._target,
         'text': irc_event._arguments[0],
@@ -44,29 +46,32 @@ def format_msg(irc_event, proxy_client):
 def format_server_message(irc_event, proxy_client):
     return {
         'type': irc_event._eventtype,
-        'server': get_event_server_name(irc_event, proxy_client),
+        'server': get_server(irc_event, proxy_client).server_name,
         'text': irc_event._arguments[0],
     }
 
 def format_server_join(irc_event, proxy_client):
     return {
         'type': 'server_connect',
-        'server': get_event_server_name(irc_event, proxy_client),
+        'server': get_server(irc_event, proxy_client).server_name,
     }
 
-def format_channel_join(irc_event, proxy_client):
+def format_channel_join_part(irc_event, proxy_client):
+    server = get_server(irc_event, proxy_client)
+    user, location = ircutil.nick_split(irc_event._source)
     return {
-        'type': 'channel_join',
-        'server': get_event_server_name(irc_event, proxy_client),
-        'channel': irc_event._target,
+        'type': 'channel_%s' % irc_event._eventtype,
+        'server': server.server_name,
+        'target': irc_event._target,
+        'user': irc_event._source,
+        'this_user': server.nick_name == user,
     }
 
-def get_event_server_name(irc_event, proxy_client):
-
+def get_server(irc_event, proxy_client):
     connection = irc_event.connection
     for server in proxy_client.remote_irc_servers.itervalues():
         if server.connection == connection:
-            return server.server_name
+            return server
 
 def format_ignore(irc_event, proxy_client):
     return False
@@ -84,7 +89,8 @@ EVENT_TYPE_FORMATTERS = {
     'luserchannels': format_server_message,
     'privnotice': format_server_message,
     'server_join': format_server_join,
-    'join': format_channel_join,
+    'join': format_channel_join_part,
+    'part': format_channel_join_part,
 
     #TODO:
     'namreply': format_ignore,
@@ -103,7 +109,6 @@ EVENT_TYPE_FORMATTERS = {
     'created': format_ignore,
     'error': format_ignore,
     'disconnect': format_ignore,
-    'part': format_ignore,
     'nosuchchannel': format_ignore,
     'mode': format_ignore,
 

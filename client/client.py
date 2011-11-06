@@ -101,9 +101,13 @@ class IRCProxyClient(object):
         elif event_type == "server_disconnect":
             self.interface.on_server_disconnect(event['server'])
         elif event_type == "channel_join":
-            self.interface.on_channel_join(event['server'], event['channel'])
-        elif event_type == "channel_leave":
-            self.interface.on_channel_leave(event['server'], event['channel'])
+            if event['this_user']:
+                self.interface.on_channel_join(event['server'], event['target'])
+                return
+        elif event_type == "channel_part":
+            if event['this_user']:
+                self.interface.on_channel_part(event['server'], event['target'])
+                return
 
         self.formatter.print_event(event)
 
@@ -163,15 +167,15 @@ class IRCProxyClient(object):
                     else:
                         self.proxy.channel_join(server, args[0])
 
-                elif command == "leave":
+                elif command == "leave" or command == "part":
                     if not server or not channel:
                         if len(args) == 2:
-                            self.proxy.channel_leave(*args)
+                            self.proxy.channel_part(*args)
                         else:
                             #TODO: Print useage message
                             print "Wrong number of args"
                     else:
-                        self.proxy.channel_leave(server, channel)
+                        self.proxy.channel_part(server, channel)
 
                 else:
                     print "Warning: Bad command!"

@@ -102,11 +102,11 @@ Methods
     :param ipv6:
         If True, ipv6 is used to connect to the server.
 
-.. function:: server_disconnect(server_name, leave_message="")
+.. function:: server_disconnect(server_name, part_message="")
 
     Disconnect from an IRC server.
 
-    :param leave_message:
+    :param part_message:
         A message that is given to each channel and the server when
         leaving.
 
@@ -121,7 +121,7 @@ Methods
 
     Join a channel.
 
-.. function:: channel_leave(server_name, channel_name, message="")
+.. function:: channel_part(server_name, channel_name, message="")
 
     Leave a channel.
 
